@@ -1,0 +1,41 @@
+# Dependencies and builds
+node_modules/
+.expo/
+dist/
+build/
+coverage/
+.cache/
+.turbo/
+
+# Native build output
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/ios/Pods/
+*.apk
+*.aab
+
+# Solidity
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+# Generated indexer data
+indexer/generated/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+keystore/
+secrets/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Evidence containing local or sensitive data
+docs/evidence/private/
