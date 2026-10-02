@@ -4,6 +4,11 @@ node_modules/
 dist/
 build/
 coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 .cache/
 .turbo/
 
@@ -11,6 +16,9 @@ coverage/
 apps/mobile/android/.gradle/
 apps/mobile/android/app/build/
 apps/mobile/ios/Pods/
+app/android/
+app/passkey-site/
+app/.expo/
 *.apk
 *.aab
 
