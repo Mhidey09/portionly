@@ -482,7 +482,7 @@ export default function App() {
             <View style={[styles.card, styles.success]}>
               <Text style={styles.cardTitle}>Allocation verified</Text>
               <Text style={styles.successAmount}>{result.usedFallback ? "Invest moved to Grow" : `+${formatUnits(result.investOut, 18)} aQQQ`}</Text>
-              <Text style={styles.helper}>{formatUnits(result.growShares, 18)} Upshift shares delivered.</Text>
+              <Text style={styles.helper}>{formatUnits(result.growShares, 6)} earnAUSD savings shares delivered.</Text>
               {result.hashes.map((hash) => <Text selectable key={hash} style={styles.hash}>{hash}</Text>)}
             </View>
           )}
