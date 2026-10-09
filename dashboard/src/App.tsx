@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import type { Address } from "viem";
+import HistorySection from "./HistorySection";
+import { loadHistory, type HistoryState } from "./history";
 import { explorerAddress, parseRecipient, readRecipient, type RecipientSnapshot } from "./data";
 
 function short(address: string) {
@@ -21,15 +23,19 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<RecipientSnapshot | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<HistoryState | "loading">("loading");
 
   async function load(raw: string) {
     setStatus("loading");
     setError("");
     try {
       const recipient = parseRecipient(raw);
+      setHistory("loading");
+      const historyRequest = loadHistory(recipient);
       const next = await readRecipient(recipient);
       setSnapshot(next);
       setStatus("ready");
+      void historyRequest.then(setHistory);
       const url = new URL(window.location.href);
       url.searchParams.set("recipient", recipient);
       window.history.replaceState({}, "", url);
@@ -118,6 +124,16 @@ export default function App() {
                 <p>Tokenized Nasdaq-100 tracker balance. This is not direct ownership of constituent shares.</p>
               </article>
               <article>
+                <span>Saving</span>
+                <strong>{amount(snapshot.earn, 6)} <small>earnAUSD</small></strong>
+                <p>
+                  Upshift vault shares. Yield is not guaranteed.{" "}
+                  {snapshot.earnValue !== null
+                    ? `Redemption value now: ${amount(snapshot.earnValue, 6)} AUSD.`
+                    : "Value shown at redemption."}
+                </p>
+              </article>
+              <article>
                 <span>Network gas</span>
                 <strong>{amount(snapshot.mon, 5)} <small>MON</small></strong>
                 <p>Used only to pay Monad transaction fees.</p>
@@ -130,13 +146,7 @@ export default function App() {
             </footer>
           </section>
 
-          <section className="history" aria-labelledby="history-title">
-            <div>
-              <p className="section-label">Transfers</p>
-              <h2 id="history-title">History isn’t connected yet.</h2>
-            </div>
-            <p>Balances above are live. Portionly transfer receipts will appear after the Envio indexer and mainnet splitter are deployed.</p>
-          </section>
+          <HistorySection state={history} />
         </>
       )}
 

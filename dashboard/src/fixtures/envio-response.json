@@ -1,0 +1,59 @@
+{
+  "plans": {
+    "data": {
+      "Plan": [
+        {
+          "id": "0xaaaa000000000000000000000000000000000000000000000000000000000001-12",
+          "planId": "7",
+          "sender": "0x1111111111111111111111111111111111111111",
+          "recipient": "0x42e0ddf73e2275e7f41b22cf9c587adda3c1b7d2",
+          "nowAmount": 1000000,
+          "growAmount": "500000",
+          "growShares": 477870,
+          "investAmount": "250000",
+          "investOut": "1230000000000000000",
+          "usedFallback": false,
+          "blockNumber": 112000000,
+          "timestamp": 1760000000,
+          "txHash": "0xaaaa000000000000000000000000000000000000000000000000000000000001"
+        },
+        {
+          "id": "0xbbbb000000000000000000000000000000000000000000000000000000000002-3",
+          "planId": "6",
+          "sender": "0x1111111111111111111111111111111111111111",
+          "recipient": "0x42e0ddf73e2275e7f41b22cf9c587adda3c1b7d2",
+          "nowAmount": "2000000",
+          "growAmount": "0",
+          "growShares": "0",
+          "investAmount": "300000",
+          "investOut": "0",
+          "usedFallback": true,
+          "blockNumber": 111999000,
+          "timestamp": 1759900000,
+          "txHash": "0xbbbb000000000000000000000000000000000000000000000000000000000002"
+        }
+      ]
+    }
+  },
+  "positions": {
+    "data": {
+      "Position": [
+        {
+          "id": "0x01",
+          "depositor": "0x28ac522b6224dbdad523f3dbfa9d3a62d995da1a",
+          "beneficiary": "0x42e0ddf73e2275e7f41b22cf9c587adda3c1b7d2",
+          "asset": "0x103222f020e98bba0ad9809a011fdf8e6f067496",
+          "amount": 477870,
+          "unlockAt": "1770000000",
+          "lockedAt": 1760000000,
+          "lockTxHash": "0xAAAA000000000000000000000000000000000000000000000000000000000001",
+          "claimed": false,
+          "claimedAt": null,
+          "claimTxHash": null
+        }
+      ]
+    }
+  },
+  "empty": { "data": { "Plan": [] } },
+  "graphqlError": { "errors": [{ "message": "field 'Plan' not found in type: 'query_root'" }] }
+}
