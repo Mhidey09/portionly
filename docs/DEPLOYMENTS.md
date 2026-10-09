@@ -1,0 +1,29 @@
+# Deployments
+
+Monad mainnet, chain ID 143. Deployed 2026-10-09 by `0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2` from `contracts/script/DeployPortionly.s.sol`. Broadcast log: `contracts/broadcast/DeployPortionly.s.sol/143/run-latest.json`.
+
+| Contract | Address | Deploy transaction |
+|---|---|---|
+| PortionlySplitterV2 | `0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a` | `0xc09240541a4d5cf07a4b067ced17391f9a43bf0b5d10fc8cf1f6f950227d3ca5` |
+| PortionlyAqqqInvest | `0xe899fB7aD899d74b55b9a911D2d6DB6784d3c9db` | `0x891cc6c699466ba5f990f1b7df4e6aa7b77edfc95c9830db86eb4aa2c6a2b294` |
+| PortionlyFuture | `0x816fd57253CD589B76cF24B8cA1Ba38bB7818E22` | `0xfc35e507862237bfe00ae158700f3b08ee54c73e0fdcee2a4b107a818487d0f6` |
+
+None of the contracts has an owner, admin or upgrade path. The deployer keeps no control after deployment.
+
+## Verification
+
+Runtime bytecode read with `cast code`:
+
+- PortionlyAqqqInvest: keccak `0xa4adda6f674e5c4393c99a461ddc20444d19d5bc9e206ba139906d41cfd1057d`, identical to the local `forge build` output.
+- PortionlyFuture: keccak `0xb6e50fafcc9d1897e8f87ed25652a6cf2715f4b5e57014429200a0e79ff07cf9`, identical to the local `forge build` output.
+- PortionlySplitterV2 carries immutables, so it was checked by reading them:
+
+| Immutable | Value |
+|---|---|
+| `ausd()` | `0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` (AUSD) |
+| `vault()` | `0x36eDbF0C834591BFdfCaC0Ef9605528c75c406aA` (Upshift AUSD vault) |
+| `vaultShare()` | `0x103222f020e98Bba0AD9809A011FDF8e6F067496` (earnAUSD, `vault.lpTokenAddress()`) |
+| `future()` | `0x816fd57253CD589B76cF24B8cA1Ba38bB7818E22` |
+| `investExecutor()` | `0xe899fB7aD899d74b55b9a911D2d6DB6784d3c9db` |
+
+Explorer: <https://monadscan.com/address/0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a>
