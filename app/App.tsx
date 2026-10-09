@@ -210,7 +210,6 @@ export default function App() {
       setKnownAddress(next.main.address);
       const nextActive = next.byIndex.has(activeIndex) ? activeIndex : 0;
       setActiveIndex(nextActive);
-      setRecipient((current) => current || next.main.address);
       await refresh(next.byIndex.get(nextActive)?.address ?? next.main.address);
       await refreshPeople(next);
     } catch (caught) {
@@ -299,7 +298,8 @@ export default function App() {
     setResult(null);
     try {
       if (activePerson && recipient.toLowerCase() !== activePerson.recipient.toLowerCase()) throw new Error("Recipient is fixed for this person");
-      if (!isAddress(recipient)) throw new Error("Enter a valid EVM recipient address");
+      if (!isAddress(recipient)) throw new Error("Enter the recipient's address");
+      if (senderAddress && recipient.toLowerCase() === senderAddress.toLowerCase()) throw new Error("That's your own account. Enter the address of the person you're paying.");
       const total = parseUnits(totalInput.trim(), 6);
       if (total <= 0n) throw new Error("Total must be greater than zero");
       const percentages = [plannedAllocation.now, plannedAllocation.grow, plannedAllocation.invest].map((value) => Number(value));
@@ -427,7 +427,7 @@ export default function App() {
                   value={totalInput}
                 />
                 {activePerson && !wallet && <Text style={styles.helper}>Unlock to use this account.</Text>}
-                {activePerson && <Button secondary label="Back to Main" onPress={() => selectAccount(0, wallets?.main.address ?? "")} disabled={busy !== null} />}
+                {activePerson && <Button secondary label="Back to Main" onPress={() => selectAccount(0, "")} disabled={busy !== null} />}
                 <View style={styles.balanceStrip}>
                   <View><Text style={styles.label}>AUSD</Text><Text style={styles.value}>{shownBalances?.ausd ?? "—"}</Text></View>
                   <View><Text style={styles.label}>MON GAS</Text><Text style={styles.value}>{shownBalances?.mon ?? "—"}</Text></View>
