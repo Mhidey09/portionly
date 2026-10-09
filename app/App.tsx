@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -106,6 +107,7 @@ export default function App() {
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState<string | null>("Loading account");
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     Promise.all([loadAccount(), loadPeople()])
@@ -133,6 +135,24 @@ export default function App() {
     const next = await readBalances(target);
     setBalances(next);
     return next;
+  }
+
+  // Balances are public, so read them as soon as the address is known, even while locked.
+  useEffect(() => {
+    if (senderAddress) void refresh(senderAddress).catch((caught) => setError(describeError(caught)));
+  }, [senderAddress]);
+
+  async function manualRefresh(): Promise<void> {
+    setRefreshing(true);
+    setError(null);
+    try {
+      await refresh();
+      if (wallets) await refreshPeople();
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   async function connect(kind: "create" | "signin" | "unlock"): Promise<void> {
@@ -299,7 +319,11 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.screen}>
         <StatusBar barStyle="dark-content" backgroundColor="#F7F6F3" />
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void manualRefresh()} />}
+        >
           <View style={styles.hero}>
             <Text style={styles.eyebrow}>PORTIONLY Â· MONAD</Text>
             <Text style={styles.title}>One payment, already divided.</Text>
@@ -332,7 +356,7 @@ export default function App() {
               <View style={styles.card}>
                 <View style={styles.row}>
                   <Text style={styles.cardTitle}>{activePerson ? `Send to ${activePerson.name}` : "Payment"}</Text>
-                  <Pressable onPress={() => void refresh()}><Text style={styles.link}>Refresh balances</Text></Pressable>
+                  <Pressable onPress={() => void manualRefresh()} disabled={refreshing}><Text style={styles.link}>{refreshing ? "Updating…" : "Refresh balances"}</Text></Pressable>
                 </View>
                 <Text style={styles.fieldLabel}>RECIPIENT</Text>
                 {activePerson && <Text style={styles.helper}>Paid from the account that belongs to {activePerson.name}. The recipient is fixed.</Text>}
