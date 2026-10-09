@@ -14,6 +14,7 @@ import { toViemAccount } from "@category-labs/mera/viem";
 import { ADDRESSES, buildAqqqProofPlan, type AqqqProofPlan } from "./aqqqProofPlan";
 import { portionlySplitterAbi, type PortionlyPlan } from "./portionlyPlan";
 import { MONAD_CHAIN_ID, MONAD_RPC_URL } from "./config";
+import { buildFundingCalls } from "./funding";
 import type { Wallet } from "./wallet";
 
 const erc20Abi = [
@@ -226,9 +227,35 @@ async function executePortionly(
   };
 }
 
+async function fundPerson(
+  main: Wallet,
+  person: Address,
+  ausdAmount: bigint,
+  monAmount: bigint,
+  onUpdate: (update: ExecutionUpdate) => void = () => undefined,
+): Promise<Hash[]> {
+  if (main.index !== 0) throw new Error("Funding must come from Main");
+  await assertMonad();
+  const balances = await readBalances(main.address);
+  const calls = buildFundingCalls({ main: main.address, person, ausdAmount, monAmount, ausdBalance: balances.ausd, monBalance: balances.mon });
+  const account = toViemAccount(main.session);
+  const client = createWalletClient({ account, chain: monad, transport: http(MONAD_RPC_URL) });
+  const hashes: Hash[] = [];
+  for (const [index, call] of calls.entries()) {
+    onUpdate({ index, label: call.label, state: "signing" });
+    const hash = await client.sendTransaction({ account, chain: monad, to: call.to, data: call.data, value: call.value });
+    hashes.push(hash);
+    onUpdate({ index, label: call.label, hash, state: "pending" });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+    if (receipt.status !== "success") throw new Error(`${call.label} reverted: ${hash}`);
+    onUpdate({ index, label: call.label, hash, state: "confirmed" });
+  }
+  return hashes;
+}
+
 function formatBalances(value: Balances): { ausd: string; aqqq: string; mon: string } {
   return { ausd: formatUnits(value.ausd, 6), aqqq: formatUnits(value.aqqq, 18), mon: formatUnits(value.mon, 18) };
 }
 
-export { executePortionly, executeProof, formatBalances, prepareProof, quoteAusdToAqqq, quoteOneAusd, readBalances };
+export { executePortionly, executeProof, formatBalances, fundPerson, prepareProof, quoteAusdToAqqq, quoteOneAusd, readBalances };
 export type { Balances, ExecutionUpdate, Quote };

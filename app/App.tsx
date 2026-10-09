@@ -12,11 +12,14 @@ import {
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { formatUnits, isAddress, parseUnits, type Address, type Hash } from "viem";
+import { gasTopUpFor } from "./src/funding";
+import { addPerson, type Person } from "./src/people";
 import { ADDRESSES } from "./src/aqqqProofPlan";
 import { splitterAddress } from "./src/config";
 import {
   executePortionly,
   formatBalances,
+  fundPerson,
   quoteAusdToAqqq,
   readBalances,
   type Balances,
@@ -24,13 +27,15 @@ import {
   type Quote,
 } from "./src/network";
 import { buildPortionlyPlan, type PortionlyPlan } from "./src/portionlyPlan";
-import { loadAccount } from "./src/storage";
+import { loadAccount, loadPeople, savePeople } from "./src/storage";
 import {
   createAccount,
   describeError,
+  endWallets,
   signIn,
   unlockStoredWallet,
   type Wallet,
+  type Wallets,
 } from "./src/wallet";
 
 type Allocation = { now: string; grow: string; invest: string };
@@ -84,7 +89,13 @@ function AllocationInput({ label, value, tint, onChange }: { label: string; valu
 }
 
 export default function App() {
-  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [wallets, setWallets] = useState<Wallets | null>(null);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [peopleBalances, setPeopleBalances] = useState<Record<number, Balances>>({});
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [newName, setNewName] = useState("");
+  const [newRecipient, setNewRecipient] = useState("");
+  const [topUpInputs, setTopUpInputs] = useState<Record<number, string>>({});
   const [knownAddress, setKnownAddress] = useState<Address | null>(null);
   const [balances, setBalances] = useState<Balances | null>(null);
   const [recipient, setRecipient] = useState("");
@@ -97,19 +108,27 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadAccount()
-      .then((stored) => setKnownAddress(stored?.address ?? null))
+    Promise.all([loadAccount(), loadPeople()])
+      .then(([stored, saved]) => {
+        setKnownAddress(stored?.address ?? null);
+        setPeople(saved);
+      })
       .catch((caught) => setError(describeError(caught)))
       .finally(() => setBusy(null));
   }, []);
 
-  useEffect(() => () => wallet?.session.end(), [wallet]);
+  useEffect(() => () => endWallets(wallets), [wallets]);
 
-  const address = wallet?.address ?? knownAddress;
+  const activePerson = people.find((person) => person.index === activeIndex) ?? null;
+  const wallet: Wallet | null = wallets?.byIndex.get(activeIndex) ?? null;
+
+  const address = wallets?.main.address ?? knownAddress;
+  // The account that pays in the Payment card: Main, or the selected person's own account.
+  const senderAddress = activeIndex === 0 ? address : wallet?.address ?? null;
   const shownBalances = useMemo(() => (balances ? formatBalances(balances) : null), [balances]);
   const allocationTotal = Number(allocation.now || 0) + Number(allocation.grow || 0) + Number(allocation.invest || 0);
 
-  async function refresh(target = address): Promise<Balances | undefined> {
+  async function refresh(target = senderAddress): Promise<Balances | undefined> {
     if (!target) return undefined;
     const next = await readBalances(target);
     setBalances(next);
@@ -123,11 +142,14 @@ export default function App() {
     try {
       const next = kind === "create" ? await createAccount() : kind === "signin" ? await signIn() : await unlockStoredWallet();
       if (!next) throw new Error("No stored Mera account was found");
-      wallet?.session.end();
-      setWallet(next);
-      setKnownAddress(next.address);
-      setRecipient((current) => current || next.address);
-      await refresh(next.address);
+      endWallets(wallets);
+      setWallets(next);
+      setKnownAddress(next.main.address);
+      const nextActive = next.byIndex.has(activeIndex) ? activeIndex : 0;
+      setActiveIndex(nextActive);
+      setRecipient((current) => current || next.main.address);
+      await refresh(next.byIndex.get(nextActive)?.address ?? next.main.address);
+      await refreshPeople(next);
     } catch (caught) {
       setError(describeError(caught));
     } finally {
@@ -135,13 +157,85 @@ export default function App() {
     }
   }
 
+  async function refreshPeople(source: Wallets | null = wallets, list: Person[] = people): Promise<void> {
+    if (!source) return;
+    const entries = await Promise.all(
+      list.map(async (person) => {
+        const account = source.byIndex.get(person.index);
+        return account ? ([person.index, await readBalances(account.address)] as const) : undefined;
+      }),
+    );
+    setPeopleBalances(Object.fromEntries(entries.filter((entry) => entry !== undefined)));
+  }
+
+  function selectAccount(index: number, defaultRecipient: string): void {
+    setActiveIndex(index);
+    setRecipient(defaultRecipient);
+    setReview(null);
+    setResult(null);
+    setError(null);
+    const target = index === 0 ? wallets?.main.address ?? address : wallets?.byIndex.get(index)?.address;
+    if (target) void refresh(target).catch((caught) => setError(describeError(caught)));
+  }
+
+  async function submitPerson(): Promise<void> {
+    setError(null);
+    setBusy("Adding person");
+    try {
+      const next = addPerson(people, newName, newRecipient);
+      await savePeople(next);
+      setPeople(next);
+      setNewName("");
+      setNewRecipient("");
+      if (wallets) {
+        // A new person needs a new signing session, which needs one more passkey unlock.
+        setBusy("Opening the new account");
+        const reopened = await unlockStoredWallet();
+        if (reopened) {
+          endWallets(wallets);
+          setWallets(reopened);
+          await refreshPeople(reopened, next);
+        }
+      }
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function topUp(person: Person): Promise<void> {
+    setError(null);
+    setResult(null);
+    setProgress(null);
+    setBusy(`Topping up ${person.name}`);
+    try {
+      const main = wallets?.main;
+      const personWallet = wallets?.byIndex.get(person.index);
+      if (!main || !personWallet) throw new Error("Unlock your account first");
+      const ausd = parseUnits((topUpInputs[person.index] ?? "").trim(), 6);
+      if (ausd <= 0n) throw new Error("Top up must be greater than zero");
+      const current = await readBalances(personWallet.address);
+      await fundPerson(main, personWallet.address, ausd, gasTopUpFor(current.mon), setProgress);
+      setTopUpInputs({ ...topUpInputs, [person.index]: "" });
+      await refreshPeople();
+      if (activeIndex === 0) await refresh(main.address);
+    } catch (caught) {
+      setError(describeError(caught));
+      await refreshPeople().catch(() => undefined);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function makeReview(): Promise<void> {
-    if (!address) throw new Error("Open a Mera account first");
+    if (!senderAddress) throw new Error("Unlock your account first");
     setBusy("Fetching live Monad quote");
     setError(null);
     setReview(null);
     setResult(null);
     try {
+      if (activePerson && recipient.toLowerCase() !== activePerson.recipient.toLowerCase()) throw new Error("Recipient is fixed for this person");
       if (!isAddress(recipient)) throw new Error("Enter a valid EVM recipient address");
       const total = parseUnits(totalInput.trim(), 6);
       if (total <= 0n) throw new Error("Total must be greater than zero");
@@ -150,7 +244,7 @@ export default function App() {
       if (percentages.reduce((sum, value) => sum + value, 0) !== 100) throw new Error("Allocation must total exactly 100%");
       if (percentages[2] === 0) throw new Error("Invest must be above 0% while aQQQ is enabled");
 
-      const currentBalances = await refresh(address);
+      const currentBalances = await refresh(senderAddress);
       if (!currentBalances) throw new Error("Balances are unavailable");
       const nowAmount = total * BigInt(percentages[0]) / 100n;
       const growAmount = total * BigInt(percentages[1]) / 100n;
@@ -160,7 +254,7 @@ export default function App() {
       const plan = splitterAddress
         ? buildPortionlyPlan({
             chainId: 143,
-            account: address,
+            account: senderAddress,
             recipient,
             splitter: splitterAddress,
             ausdBalance: currentBalances.ausd,
@@ -192,6 +286,7 @@ export default function App() {
       setResult(completed);
       setReview(null);
       await refresh(wallet.address);
+      await refreshPeople();
     } catch (caught) {
       setError(describeError(caught));
       await refresh(wallet.address).catch(() => undefined);
@@ -236,13 +331,15 @@ export default function App() {
             <>
               <View style={styles.card}>
                 <View style={styles.row}>
-                  <Text style={styles.cardTitle}>Payment</Text>
+                  <Text style={styles.cardTitle}>{activePerson ? `Send to ${activePerson.name}` : "Payment"}</Text>
                   <Pressable onPress={() => void refresh()}><Text style={styles.link}>Refresh balances</Text></Pressable>
                 </View>
                 <Text style={styles.fieldLabel}>RECIPIENT</Text>
+                {activePerson && <Text style={styles.helper}>Paid from the account that belongs to {activePerson.name}. The recipient is fixed.</Text>}
                 <TextInput
                   autoCapitalize="none"
                   autoCorrect={false}
+                  editable={!activePerson}
                   onChangeText={(value) => { setRecipient(value.trim()); setReview(null); }}
                   placeholder="0x…"
                   placeholderTextColor="#A19F99"
@@ -258,6 +355,8 @@ export default function App() {
                   style={[styles.textInput, styles.amountInput]}
                   value={totalInput}
                 />
+                {activePerson && !wallet && <Text style={styles.helper}>Unlock to use this account.</Text>}
+                {activePerson && <Button secondary label="Back to Main" onPress={() => selectAccount(0, wallets?.main.address ?? "")} disabled={busy !== null} />}
                 <View style={styles.balanceStrip}>
                   <View><Text style={styles.label}>AUSD</Text><Text style={styles.value}>{shownBalances?.ausd ?? "—"}</Text></View>
                   <View><Text style={styles.label}>MON GAS</Text><Text style={styles.value}>{shownBalances?.mon ?? "—"}</Text></View>
@@ -283,6 +382,51 @@ export default function App() {
                 <Button label="Get live quote" onPress={() => void makeReview()} disabled={busy !== null || allocationTotal !== 100} />
               </View>
             </>
+          )}
+
+          {address && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>People</Text>
+              <Text style={styles.helper}>One fingerprint opens every account. Each person gets their own account, budget and history. They see the account that pays them, not your main balance.</Text>
+              {people.map((person) => {
+                const shown = peopleBalances[person.index] ? formatBalances(peopleBalances[person.index]) : null;
+                const selected = activeIndex === person.index;
+                return (
+                  <View key={person.index} style={[styles.personBox, selected && styles.personBoxActive]}>
+                    <View style={styles.row}>
+                      <Text style={styles.routeName}>{person.name}</Text>
+                      <Text style={styles.contract}>{short(person.recipient)}</Text>
+                    </View>
+                    <View style={styles.row}>
+                      <Text style={styles.helper}>AUSD {shown?.ausd ?? "—"}</Text>
+                      <Text style={styles.helper}>MON {shown?.mon ?? "—"}</Text>
+                    </View>
+                    {wallets ? (
+                      <>
+                        <TextInput
+                          keyboardType="decimal-pad"
+                          onChangeText={(value) => setTopUpInputs({ ...topUpInputs, [person.index]: value })}
+                          placeholder="AUSD to top up"
+                          placeholderTextColor="#A19F99"
+                          style={styles.textInput}
+                          value={topUpInputs[person.index] ?? ""}
+                        />
+                        <View style={styles.twoButtons}>
+                          <View style={styles.flex}><Button secondary label="Top up from Main" onPress={() => void topUp(person)} disabled={busy !== null} /></View>
+                          <View style={styles.flex}><Button label={`Send to ${person.name}`} onPress={() => selectAccount(person.index, person.recipient)} disabled={busy !== null} /></View>
+                        </View>
+                      </>
+                    ) : (
+                      <Button secondary label="Unlock to use" onPress={() => void connect("unlock")} disabled={busy !== null} />
+                    )}
+                  </View>
+                );
+              })}
+              <Text style={styles.fieldLabel}>ADD PERSON</Text>
+              <TextInput maxLength={32} onChangeText={setNewName} placeholder="Name" placeholderTextColor="#A19F99" style={styles.textInput} value={newName} />
+              <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={setNewRecipient} placeholder="Recipient address 0x…" placeholderTextColor="#A19F99" style={styles.textInput} value={newRecipient} />
+              <Button label="Add person" onPress={() => void submitPerson()} disabled={busy !== null || newName.trim() === "" || newRecipient.trim() === ""} />
+            </View>
           )}
 
           {review && (
@@ -388,6 +532,8 @@ const styles = StyleSheet.create({
   success: { backgroundColor: "#EDF3EC", borderColor: "#C9D9C7" },
   successAmount: { color: "#346538", fontSize: 22, fontWeight: "700" },
   hash: { color: "#4E6252", fontFamily: "monospace", fontSize: 9, lineHeight: 15 },
+  personBox: { backgroundColor: "#FBFBFA", borderColor: "#E7E4DE", borderWidth: 1, borderRadius: 8, gap: 10, padding: 12 },
+  personBoxActive: { borderColor: "#9EA9A2" },
   contracts: { padding: 8, gap: 5 },
   contract: { color: "#7A7D79", fontFamily: "monospace", fontSize: 10 },
 });

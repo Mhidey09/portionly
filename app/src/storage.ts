@@ -6,9 +6,11 @@ import {
   setItemAsync,
   WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 } from "expo-secure-store";
+import { parsePeople, type Person } from "./people";
 
 const PRF_KEY = "portionly.mera.prf.v1";
 const ACCOUNT_KEY = "portionly.mera.account.v1";
+const PEOPLE_KEY = "portionly.people.v1";
 const secureOptions = {
   requireAuthentication: true,
   keychainAccessible: WHEN_UNLOCKED_THIS_DEVICE_ONLY,
@@ -57,10 +59,20 @@ async function readStoredPrf(): Promise<getPasskeyPrfOutput.Result | undefined> 
   return { credentialId: value.credentialId, prfOutput };
 }
 
+// Not secret (names and recipient addresses), so no requireAuthentication.
+async function loadPeople(): Promise<Person[]> {
+  return parsePeople(await getItemAsync(PEOPLE_KEY));
+}
+
+async function savePeople(people: readonly Person[]): Promise<void> {
+  await setItemAsync(PEOPLE_KEY, JSON.stringify(people));
+}
+
 async function clearAccount(): Promise<void> {
+  await deleteItemAsync(PEOPLE_KEY);
   await deleteItemAsync(PRF_KEY);
   await deleteItemAsync(ACCOUNT_KEY);
 }
 
-export { clearAccount, loadAccount, readStoredPrf, storeAccount };
+export { clearAccount, loadAccount, loadPeople, readStoredPrf, savePeople, storeAccount };
 export type { StoredAccount };
