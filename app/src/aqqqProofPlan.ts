@@ -14,6 +14,8 @@ const ADDRESSES = {
   universalRouter: "0xa6CE4F10d83dBdDAc17E68e1837ca9cE6a1b596e",
   quoter: "0xa222Dd357A9076d1091Ed6Aa2e16C9742dD26891",
   growVault: "0x36eDbF0C834591BFdfCaC0Ef9605528c75c406aA",
+  // Upshift mints Grow shares from this separate earnAUSD token (vault.lpTokenAddress()); the vault itself has no balanceOf.
+  growShare: "0x103222f020e98Bba0AD9809A011FDF8e6F067496",
 } as const satisfies Record<string, Address>;
 
 const PROOF_AMOUNT = 1_000_000n;

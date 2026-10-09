@@ -169,7 +169,7 @@ async function executePortionly(
     readBalances(wallet.address),
     readTokenBalance(ADDRESSES.ausd, plan.recipient),
     readTokenBalance(ADDRESSES.aqqq, plan.recipient),
-    readTokenBalance(ADDRESSES.growVault, plan.recipient),
+    readTokenBalance(ADDRESSES.growShare, plan.recipient),
     readTokenBalance(ADDRESSES.ausd, splitter),
   ]);
   const account = toViemAccount(wallet.session);
@@ -205,7 +205,7 @@ async function executePortionly(
     readBalances(wallet.address),
     readTokenBalance(ADDRESSES.ausd, plan.recipient),
     readTokenBalance(ADDRESSES.aqqq, plan.recipient),
-    readTokenBalance(ADDRESSES.growVault, plan.recipient),
+    readTokenBalance(ADDRESSES.growShare, plan.recipient),
     readTokenBalance(ADDRESSES.ausd, splitter),
   ]);
   const sameAccount = wallet.address.toLowerCase() === plan.recipient.toLowerCase();

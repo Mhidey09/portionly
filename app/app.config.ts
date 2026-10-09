@@ -9,6 +9,8 @@ const config: ExpoConfig = {
   owner: "xtrabees-team",
   version: "0.1.0",
   orientation: "portrait",
+  runtimeVersion: { policy: "appVersion" },
+  updates: { url: "https://u.expo.dev/58a5c9d3-6b61-4b9d-8715-4ee79f20a7e9" },
   android: {
     package: "com.portionly.app",
     versionCode: 1,
