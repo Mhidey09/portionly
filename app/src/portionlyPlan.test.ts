@@ -89,4 +89,18 @@ describe("buildPortionlyPlan", () => {
   it("still requires a fresh positive quote whenever Invest is above 0%", () => {
     expect(() => buildPortionlyPlan({ ...input(), quote: undefined })).toThrow(/quote/i);
   });
+
+  it("locks Grow until a chosen date with room for the execution deadline", () => {
+    const plan = buildPortionlyPlan({ ...input(), lockDays: 30 });
+    const nowSec = 1_000n;
+    expect(plan.unlockAt).toBeGreaterThanOrEqual(nowSec + 30n * 86_400n + 600n);
+    const decoded = decodeFunctionData({ abi: portionlySplitterAbi, data: plan.calls[1].data });
+    expect(decoded.args[0].unlockAt).toBe(plan.unlockAt);
+  });
+
+  it("does not lock by default and rejects unsupported lock lengths or a lock with no Grow", () => {
+    expect(buildPortionlyPlan(input()).unlockAt).toBe(0n);
+    expect(() => buildPortionlyPlan({ ...input(), lockDays: 7 as never })).toThrow(/lock/i);
+    expect(() => buildPortionlyPlan({ ...input(), nowBps: 8_000, growBps: 0, investBps: 2_000, lockDays: 90 })).toThrow(/grow/i);
+  });
 });

@@ -27,6 +27,7 @@ const config: ExpoConfig = {
     eas: { projectId: "58a5c9d3-6b61-4b9d-8715-4ee79f20a7e9" },
     rpId,
     splitterAddress: process.env.PORTIONLY_SPLITTER_ADDRESS ?? null,
+    envioUrl: process.env.ENVIO_GRAPHQL_URL ?? null,
   },
 };
 

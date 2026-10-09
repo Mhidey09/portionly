@@ -16,8 +16,9 @@ import { formatUnits, isAddress, parseUnits, type Address, type Hash } from "vie
 import { gasTopUpFor } from "./src/funding";
 import { addPerson, type Person } from "./src/people";
 import { ADDRESSES } from "./src/aqqqProofPlan";
-import { splitterAddress } from "./src/config";
+import { envioUrl, splitterAddress } from "./src/config";
 import {
+  claimLocked,
   executePortionly,
   formatBalances,
   fundPerson,
@@ -27,7 +28,8 @@ import {
   type ExecutionUpdate,
   type Quote,
 } from "./src/network";
-import { buildPortionlyPlan, type PortionlyPlan } from "./src/portionlyPlan";
+import { buildPortionlyPlan, LOCK_DAYS, type LockDays, type PortionlyPlan } from "./src/portionlyPlan";
+import { canClaim, fetchLocks, type LockedSaving } from "./src/locks";
 import { loadAccount, loadPeople, savePeople } from "./src/storage";
 import {
   createAccount,
@@ -104,6 +106,9 @@ export default function App() {
   const [recipient, setRecipient] = useState("");
   const [totalInput, setTotalInput] = useState("100");
   const [mode, setMode] = useState<Mode>("home");
+  const [lockDays, setLockDays] = useState<LockDays>(0);
+  const [locks, setLocks] = useState<LockedSaving[] | null>(null);
+  const [locksError, setLocksError] = useState<string | null>(null);
   const [allocation, setAllocation] = useState<Allocation>(DEFAULT_ALLOCATION);
   const [review, setReview] = useState<Review | null>(null);
   const [progress, setProgress] = useState<ExecutionUpdate | null>(null);
@@ -146,12 +151,46 @@ export default function App() {
     if (senderAddress) void refresh(senderAddress).catch((caught) => setError(describeError(caught)));
   }, [senderAddress]);
 
+  async function loadLocks(): Promise<void> {
+    if (!address) return;
+    if (!envioUrl) {
+      setLocksError("Locked savings can't be listed: this build has no indexer address.");
+      return;
+    }
+    try {
+      setLocks(await fetchLocks(envioUrl, address));
+      setLocksError(null);
+    } catch (caught) {
+      setLocksError(describeError(caught));
+    }
+  }
+
+  useEffect(() => {
+    void loadLocks();
+  }, [address]);
+
+  async function claim(lock: LockedSaving): Promise<void> {
+    if (!wallets) return;
+    setBusy("Claiming savings");
+    setError(null);
+    try {
+      await claimLocked(wallets.main, lock.key);
+      await loadLocks();
+      await refresh(wallets.main.address);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function manualRefresh(): Promise<void> {
     setRefreshing(true);
     setError(null);
     try {
       await refresh();
       if (wallets) await refreshPeople();
+      await loadLocks();
     } catch (caught) {
       setError(describeError(caught));
     } finally {
@@ -292,6 +331,7 @@ export default function App() {
             investBps: percentages[2] * 100,
             quote,
             nowMs: Date.now(),
+            lockDays: mode === "grow" ? lockDays : 0,
             slippageBps: 100,
           })
         : undefined;
@@ -363,7 +403,7 @@ export default function App() {
               <View style={styles.card}>
                 <View style={styles.row}>
                   <Text style={styles.cardTitle}>{activePerson ? `Send to ${activePerson.name}` : "Payment"}</Text>
-                  <Pressable onPress={() => void manualRefresh()} disabled={refreshing}><Text style={styles.link}>{refreshing ? "Updating�" : "Refresh balances"}</Text></Pressable>
+                  <Pressable onPress={() => void manualRefresh()} disabled={refreshing}><Text style={styles.link}>{refreshing ? "Updating…" : "Refresh balances"}</Text></Pressable>
                 </View>
                 <Text style={styles.fieldLabel}>RECIPIENT</Text>
                 {activePerson && <Text style={styles.helper}>Paid from the account that belongs to {activePerson.name}. The recipient is fixed.</Text>}
@@ -420,12 +460,42 @@ export default function App() {
                   <Pressable onPress={() => { setAllocation(DEFAULT_ALLOCATION); setReview(null); }}><Text style={styles.preset}>Balanced 50/30/20</Text></Pressable>
                   <Pressable onPress={() => { setAllocation({ now: "70", grow: "20", invest: "10" }); setReview(null); }}><Text style={styles.preset}>More now 70/20/10</Text></Pressable>
                 </View>
+                <Text style={styles.fieldLabel}>KEEP GROW SAVED FOR</Text>
+                <View style={styles.presets}>
+                  {LOCK_DAYS.map((days) => (
+                    <Pressable key={days} accessibilityRole="button" onPress={() => { setLockDays(days); setReview(null); }}>
+                      <Text style={[styles.preset, lockDays === days && styles.presetActive]}>{days === 0 ? "No lock" : days === 365 ? "1 year" : `${days / 30} month${days === 30 ? "" : "s"}`}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {lockDays > 0 && <Text style={styles.helper}>The Grow part stays locked for the recipient until the date shown on review. Only they can claim it, and only after that date.</Text>}
                 <Text style={styles.helper}>If Invest can’t meet the signed 1% price bound, its portion goes to Grow instead.</Text>
                 <Button label="Get live quote" onPress={() => void makeReview()} disabled={busy !== null || allocationTotal !== 100} />
                 </>
                 )}
               </View>
             </>
+          )}
+
+          {address && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Locked for you</Text>
+              {locksError && <Text style={styles.helper}>{locksError}</Text>}
+              {!locksError && locks === null && <Text style={styles.helper}>Loading locked savings…</Text>}
+              {locks !== null && locks.filter((lock) => !lock.claimed).length === 0 && <Text style={styles.helper}>Nothing is locked for this account.</Text>}
+              {locks?.filter((lock) => !lock.claimed).map((lock) => {
+                const due = canClaim(lock, BigInt(Math.floor(Date.now() / 1000)));
+                return (
+                  <View key={lock.key} style={styles.personBox}>
+                    <View style={styles.row}>
+                      <Text style={styles.routeName}>{formatUnits(lock.amount, 6)} earnAUSD</Text>
+                      <Text style={styles.helper}>{due ? "Ready" : `Unlocks ${new Date(Number(lock.unlockAt) * 1000).toDateString()}`}</Text>
+                    </View>
+                    {due && <Button label={wallets ? "Claim to my account" : "Unlock to claim"} onPress={() => void (wallets ? claim(lock) : connect("unlock"))} disabled={busy !== null} />}
+                  </View>
+                );
+              })}
+            </View>
           )}
 
           {address && (
@@ -478,6 +548,7 @@ export default function App() {
               <View style={styles.row}><Text style={styles.cardTitle}>Review</Text><Text style={styles.badge}>LIVE QUOTE</Text></View>
               <View style={styles.routeRow}><Text style={styles.routeName}>Now</Text><Text style={styles.routeAmount}>{amount(review.nowAmount)} AUSD</Text></View>
               <View style={styles.routeRow}><Text style={styles.routeName}>Grow</Text><Text style={styles.routeAmount}>{amount(review.growAmount)} AUSD</Text></View>
+              {review.plan && review.plan.unlockAt > 0n && <Text style={styles.helper}>Locked until {new Date(Number(review.plan.unlockAt) * 1000).toDateString()}</Text>}
               <View style={styles.routeRow}><Text style={styles.routeName}>Invest</Text><Text style={styles.routeAmount}>{amount(review.investAmount)} AUSD</Text></View>
               <View style={styles.divider} />
               {review.quote && <View style={styles.routeRow}><Text style={styles.label}>QUOTED aQQQ</Text><Text style={styles.monoValue}>{formatUnits(review.quote.amountOut, 18)}</Text></View>}

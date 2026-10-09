@@ -11,6 +11,10 @@ const BPS = 10_000n;
 const MAX_QUOTE_AGE_MS = 60_000;
 const MIN_MON_BALANCE = 120_000_000_000_000_000n;
 const DEADLINE_SECONDS = 600n;
+const LOCK_DAYS = [0, 30, 90, 180, 365] as const;
+type LockDays = (typeof LOCK_DAYS)[number];
+// PortionlyFuture requires unlockAt >= block.timestamp + 30 days at execution, which can land up to the deadline.
+const LOCK_MARGIN_SECONDS = DEADLINE_SECONDS + 120n;
 
 const approveAbi = [
   {
@@ -87,6 +91,8 @@ type PortionlyPlanInput = {
   quote?: { amountOut: bigint; observedAtMs: number };
   nowMs: number;
   slippageBps: number;
+  /** Keep Grow locked for this many days; 0 sends the shares straight to the recipient. */
+  lockDays?: LockDays;
 };
 type PortionlyPlan = {
   chainId: 143;
@@ -97,6 +103,7 @@ type PortionlyPlan = {
   growAmount: bigint;
   investAmount: bigint;
   investMinimumOut: bigint;
+  unlockAt: bigint;
   deadline: bigint;
   planId: Hex;
   calls: readonly PlannedCall[];
@@ -128,7 +135,12 @@ function buildPortionlyPlan(input: PortionlyPlanInput): PortionlyPlan {
   else nowAmount = input.amountIn;
   if (investing && (investAmount <= 0n || !quote || quote.amountOut <= 0n)) throw new Error("Invest allocation and quote must be positive");
   const investMinimumOut = investing && quote ? quote.amountOut * (BPS - BigInt(input.slippageBps)) / BPS : 0n;
-  const deadline = BigInt(Math.floor(input.nowMs / 1_000)) + DEADLINE_SECONDS;
+  const lockDays = input.lockDays ?? 0;
+  if (!(LOCK_DAYS as readonly number[]).includes(lockDays)) throw new Error("Unsupported lock length");
+  if (lockDays > 0 && growAmount === 0n) throw new Error("Set Grow above 0% to lock savings");
+  const nowSeconds = BigInt(Math.floor(input.nowMs / 1_000));
+  const deadline = nowSeconds + DEADLINE_SECONDS;
+  const unlockAt = lockDays > 0 ? nowSeconds + BigInt(lockDays) * 86_400n + LOCK_MARGIN_SECONDS : 0n;
   const planId = keccak256(encodePacked(
     ["address", "address", "uint256", "uint256"],
     [input.account, input.recipient, input.amountIn, BigInt(input.nowMs)],
@@ -140,7 +152,7 @@ function buildPortionlyPlan(input: PortionlyPlanInput): PortionlyPlan {
     investAmount,
     investMinimumOut,
     fallbackInvestToGrow: true,
-    unlockAt: 0n,
+    unlockAt,
     deadline,
     planId,
   } as const;
@@ -154,6 +166,7 @@ function buildPortionlyPlan(input: PortionlyPlanInput): PortionlyPlan {
     growAmount,
     investAmount,
     investMinimumOut,
+    unlockAt,
     deadline,
     planId,
     calls: [
@@ -173,5 +186,5 @@ function buildPortionlyPlan(input: PortionlyPlanInput): PortionlyPlan {
   };
 }
 
-export { buildPortionlyPlan, portionlySplitterAbi };
-export type { PortionlyPlan, PortionlyPlanInput, PlannedCall };
+export { buildPortionlyPlan, LOCK_DAYS, portionlySplitterAbi };
+export type { LockDays, PortionlyPlan, PortionlyPlanInput, PlannedCall };

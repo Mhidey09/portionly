@@ -8,6 +8,7 @@ import {
   http,
   type Address,
   type Hash,
+  type Hex,
 } from "viem";
 import { monad } from "viem/chains";
 import { toViemAccount } from "@category-labs/mera/viem";
@@ -15,6 +16,7 @@ import { ADDRESSES, buildAqqqProofPlan, type AqqqProofPlan } from "./aqqqProofPl
 import { portionlySplitterAbi, type PortionlyPlan } from "./portionlyPlan";
 import { MONAD_CHAIN_ID, MONAD_RPC_URL } from "./config";
 import { buildFundingCalls } from "./funding";
+import { claimCallData } from "./locks";
 import type { Wallet } from "./wallet";
 
 const erc20Abi = [
@@ -165,11 +167,13 @@ async function executePortionly(
   if (BigInt(Math.floor(Date.now() / 1_000)) >= plan.deadline) throw new Error("Plan expired; request a fresh quote");
 
   const splitter = plan.calls[1].to;
+  // A locked Grow sends its shares to PortionlyFuture instead of the recipient.
+  const growHolder = plan.unlockAt > 0n ? ADDRESSES.future : plan.recipient;
   const [senderBefore, recipientAusdBefore, recipientAqqqBefore, recipientGrowBefore, splitterAusdBefore] = await Promise.all([
     readBalances(wallet.address),
     readTokenBalance(ADDRESSES.ausd, plan.recipient),
     readTokenBalance(ADDRESSES.aqqq, plan.recipient),
-    readTokenBalance(ADDRESSES.growShare, plan.recipient),
+    readTokenBalance(ADDRESSES.growShare, growHolder),
     readTokenBalance(ADDRESSES.ausd, splitter),
   ]);
   const account = toViemAccount(wallet.session);
@@ -205,7 +209,7 @@ async function executePortionly(
     readBalances(wallet.address),
     readTokenBalance(ADDRESSES.ausd, plan.recipient),
     readTokenBalance(ADDRESSES.aqqq, plan.recipient),
-    readTokenBalance(ADDRESSES.growShare, plan.recipient),
+    readTokenBalance(ADDRESSES.growShare, growHolder),
     readTokenBalance(ADDRESSES.ausd, splitter),
   ]);
   const sameAccount = wallet.address.toLowerCase() === plan.recipient.toLowerCase();
@@ -219,6 +223,7 @@ async function executePortionly(
     if (recipientAqqqAfter - recipientAqqqBefore < plan.investMinimumOut) throw new Error("Post-check failed: Invest output is below minimum");
     if (plan.growAmount > 0n && recipientGrowAfter <= recipientGrowBefore) throw new Error("Post-check failed: Grow shares did not arrive");
   }
+  if (plan.unlockAt > 0n && recipientGrowAfter - recipientGrowBefore !== event.args.growShares) throw new Error("Post-check failed: locked Grow shares are not held for the recipient");
   return {
     hashes,
     usedFallback: event.args.usedFallback,
@@ -257,5 +262,15 @@ function formatBalances(value: Balances): { ausd: string; aqqq: string; mon: str
   return { ausd: formatUnits(value.ausd, 6), aqqq: formatUnits(value.aqqq, 18), mon: formatUnits(value.mon, 18) };
 }
 
-export { executePortionly, executeProof, formatBalances, fundPerson, prepareProof, quoteAusdToAqqq, quoteOneAusd, readBalances };
+async function claimLocked(wallet: Wallet, key: Hex): Promise<Hash> {
+  await assertMonad();
+  const account = toViemAccount(wallet.session);
+  const client = createWalletClient({ account, chain: monad, transport: http(MONAD_RPC_URL) });
+  const hash = await client.sendTransaction({ account, chain: monad, to: ADDRESSES.future, data: claimCallData(key), value: 0n });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+  if (receipt.status !== "success") throw new Error(`Claim reverted: ${hash}`);
+  return hash;
+}
+
+export { claimLocked, executePortionly, executeProof, formatBalances, fundPerson, prepareProof, quoteAusdToAqqq, quoteOneAusd, readBalances };
 export type { Balances, ExecutionUpdate, Quote };

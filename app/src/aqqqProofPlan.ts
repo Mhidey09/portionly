@@ -16,6 +16,8 @@ const ADDRESSES = {
   growVault: "0x36eDbF0C834591BFdfCaC0Ef9605528c75c406aA",
   // Upshift mints Grow shares from this separate earnAUSD token (vault.lpTokenAddress()); the vault itself has no balanceOf.
   growShare: "0x103222f020e98Bba0AD9809A011FDF8e6F067496",
+  // PortionlyFuture on Monad mainnet: holds locked Grow shares until their unlock date.
+  future: "0x816fd57253CD589B76cF24B8cA1Ba38bB7818E22",
 } as const satisfies Record<string, Address>;
 
 const PROOF_AMOUNT = 1_000_000n;
