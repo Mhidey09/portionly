@@ -1,10 +1,10 @@
 [
   {
-    "relation": ["delegate_permission/common.get_login_creds"],
+    "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
     "target": {
       "namespace": "android_app",
       "package_name": "com.portionly.app",
-      "sha256_cert_fingerprints": ["FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C"]
+      "sha256_cert_fingerprints": ["05:43:2F:3E:F0:E6:D9:C6:00:92:85:55:2C:0D:DE:55:B7:28:BC:61:D2:D1:C2:03:29:92:16:4D:4C:D4:6E:46"]
     }
   }
 ]
