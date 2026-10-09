@@ -70,4 +70,23 @@ describe("buildPortionlyPlan", () => {
     expect(plan.nowAmount + plan.growAmount + plan.investAmount).toBe(1_000_001n);
     expect(plan.investAmount).toBe(333_401n);
   });
+
+  it("sends home: 100% Now needs no stock quote and moves the exact amount", () => {
+    const plan = buildPortionlyPlan({ ...input(), nowBps: 10_000, growBps: 0, investBps: 0, quote: undefined });
+    expect(plan.nowAmount).toBe(100_000_000n);
+    expect(plan.growAmount).toBe(0n);
+    expect(plan.investAmount).toBe(0n);
+    expect(plan.investMinimumOut).toBe(0n);
+  });
+
+  it("never leaves rounding dust in a bucket set to 0%", () => {
+    const plan = buildPortionlyPlan({ ...input(), amountIn: 1_000_001n, ausdBalance: 1_000_001n, nowBps: 3_333, growBps: 6_667, investBps: 0, quote: undefined });
+    expect(plan.investAmount).toBe(0n);
+    expect(plan.investMinimumOut).toBe(0n);
+    expect(plan.nowAmount + plan.growAmount).toBe(1_000_001n);
+  });
+
+  it("still requires a fresh positive quote whenever Invest is above 0%", () => {
+    expect(() => buildPortionlyPlan({ ...input(), quote: undefined })).toThrow(/quote/i);
+  });
 });

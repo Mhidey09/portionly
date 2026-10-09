@@ -40,9 +40,11 @@ import {
 } from "./src/wallet";
 
 type Allocation = { now: string; grow: string; invest: string };
+type Mode = "home" | "grow";
+const SEND_HOME: Allocation = { now: "100", grow: "0", invest: "0" };
 type Review = {
   plan?: PortionlyPlan;
-  quote: Quote;
+  quote?: Quote;
   total: bigint;
   nowAmount: bigint;
   growAmount: bigint;
@@ -101,6 +103,7 @@ export default function App() {
   const [balances, setBalances] = useState<Balances | null>(null);
   const [recipient, setRecipient] = useState("");
   const [totalInput, setTotalInput] = useState("100");
+  const [mode, setMode] = useState<Mode>("home");
   const [allocation, setAllocation] = useState<Allocation>(DEFAULT_ALLOCATION);
   const [review, setReview] = useState<Review | null>(null);
   const [progress, setProgress] = useState<ExecutionUpdate | null>(null);
@@ -128,7 +131,8 @@ export default function App() {
   // The account that pays in the Payment card: Main, or the selected person's own account.
   const senderAddress = activeIndex === 0 ? address : wallet?.address ?? null;
   const shownBalances = useMemo(() => (balances ? formatBalances(balances) : null), [balances]);
-  const allocationTotal = Number(allocation.now || 0) + Number(allocation.grow || 0) + Number(allocation.invest || 0);
+  const plannedAllocation = mode === "home" ? SEND_HOME : allocation;
+  const allocationTotal = Number(plannedAllocation.now || 0) + Number(plannedAllocation.grow || 0) + Number(plannedAllocation.invest || 0);
 
   async function refresh(target = senderAddress): Promise<Balances | undefined> {
     if (!target) return undefined;
@@ -259,18 +263,21 @@ export default function App() {
       if (!isAddress(recipient)) throw new Error("Enter a valid EVM recipient address");
       const total = parseUnits(totalInput.trim(), 6);
       if (total <= 0n) throw new Error("Total must be greater than zero");
-      const percentages = [allocation.now, allocation.grow, allocation.invest].map((value) => Number(value));
+      const percentages = [plannedAllocation.now, plannedAllocation.grow, plannedAllocation.invest].map((value) => Number(value));
       if (!percentages.every((value) => Number.isInteger(value) && value >= 0 && value <= 100)) throw new Error("Percentages must be whole numbers from 0 to 100");
       if (percentages.reduce((sum, value) => sum + value, 0) !== 100) throw new Error("Allocation must total exactly 100%");
-      if (percentages[2] === 0) throw new Error("Invest must be above 0% while aQQQ is enabled");
 
       const currentBalances = await refresh(senderAddress);
       if (!currentBalances) throw new Error("Balances are unavailable");
-      const nowAmount = total * BigInt(percentages[0]) / 100n;
-      const growAmount = total * BigInt(percentages[1]) / 100n;
-      const investAmount = total - nowAmount - growAmount;
-      const quote = await quoteAusdToAqqq(investAmount);
-      const minimumOut = quote.amountOut * 9_900n / 10_000n;
+      // Same split rule as the plan builder: dust goes to the last bucket in use.
+      let nowAmount = total * BigInt(percentages[0]) / 100n;
+      let growAmount = total * BigInt(percentages[1]) / 100n;
+      let investAmount = 0n;
+      if (percentages[2] > 0) investAmount = total - nowAmount - growAmount;
+      else if (percentages[1] > 0) growAmount = total - nowAmount;
+      else nowAmount = total;
+      const quote = investAmount > 0n ? await quoteAusdToAqqq(investAmount) : undefined;
+      const minimumOut = quote ? quote.amountOut * 9_900n / 10_000n : 0n;
       const plan = splitterAddress
         ? buildPortionlyPlan({
             chainId: 143,
@@ -389,6 +396,17 @@ export default function App() {
               </View>
 
               <View style={styles.card}>
+                <View style={styles.presets}>
+                  <Pressable accessibilityRole="button" onPress={() => { setMode("home"); setReview(null); }}><Text style={[styles.preset, mode === "home" && styles.presetActive]}>Send home</Text></Pressable>
+                  <Pressable accessibilityRole="button" onPress={() => { setMode("grow"); setReview(null); }}><Text style={[styles.preset, mode === "grow" && styles.presetActive]}>Send + grow</Text></Pressable>
+                </View>
+                {mode === "home" ? (
+                  <>
+                    <Text style={styles.helper}>All of it arrives as AUSD, ready to spend, in seconds.</Text>
+                    <Button label="Review" onPress={() => void makeReview()} disabled={busy !== null} />
+                  </>
+                ) : (
+                <>
                 <View style={styles.row}>
                   <Text style={styles.cardTitle}>Allocation</Text>
                   <Text style={[styles.total, allocationTotal === 100 ? styles.totalGood : styles.totalBad]}>{allocationTotal}% total</Text>
@@ -404,6 +422,8 @@ export default function App() {
                 </View>
                 <Text style={styles.helper}>If Invest can’t meet the signed 1% price bound, its portion goes to Grow instead.</Text>
                 <Button label="Get live quote" onPress={() => void makeReview()} disabled={busy !== null || allocationTotal !== 100} />
+                </>
+                )}
               </View>
             </>
           )}
@@ -460,8 +480,8 @@ export default function App() {
               <View style={styles.routeRow}><Text style={styles.routeName}>Grow</Text><Text style={styles.routeAmount}>{amount(review.growAmount)} AUSD</Text></View>
               <View style={styles.routeRow}><Text style={styles.routeName}>Invest</Text><Text style={styles.routeAmount}>{amount(review.investAmount)} AUSD</Text></View>
               <View style={styles.divider} />
-              <View style={styles.routeRow}><Text style={styles.label}>QUOTED aQQQ</Text><Text style={styles.monoValue}>{formatUnits(review.quote.amountOut, 18)}</Text></View>
-              <View style={styles.routeRow}><Text style={styles.label}>MINIMUM aQQQ</Text><Text style={styles.monoValue}>{formatUnits(review.minimumOut, 18)}</Text></View>
+              {review.quote && <View style={styles.routeRow}><Text style={styles.label}>QUOTED aQQQ</Text><Text style={styles.monoValue}>{formatUnits(review.quote.amountOut, 18)}</Text></View>}
+              {review.quote && <View style={styles.routeRow}><Text style={styles.label}>MINIMUM aQQQ</Text><Text style={styles.monoValue}>{formatUnits(review.minimumOut, 18)}</Text></View>}
               <Text style={styles.helper}>Two confirmations: exact AUSD approval, then one atomic allocation. Final balances and the PlanExecuted event are checked before success is shown.</Text>
               {review.plan ? (
                 wallet ? <Button label="Confirm and send" onPress={() => void execute()} disabled={busy !== null} /> : <Button label="Unlock account to send" onPress={() => void connect("unlock")} disabled={busy !== null} />
@@ -541,6 +561,7 @@ const styles = StyleSheet.create({
   percentSign: { color: "#858883", fontSize: 13 },
   presets: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   preset: { backgroundColor: "#F7F6F3", borderColor: "#E7E4DE", borderWidth: 1, borderRadius: 999, color: "#555C57", fontSize: 11, overflow: "hidden", paddingHorizontal: 10, paddingVertical: 7 },
+  presetActive: { backgroundColor: "#202522", borderColor: "#202522", color: "#FFFFFF" },
   helper: { color: "#6C716D", fontSize: 12, lineHeight: 18 },
   routeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", gap: 16 },
   routeName: { color: "#505652", fontSize: 14 },

@@ -83,7 +83,8 @@ type PortionlyPlanInput = {
   nowBps: number;
   growBps: number;
   investBps: number;
-  quote: { amountOut: bigint; observedAtMs: number };
+  /** Required when investBps > 0; a Send home or Now+Grow plan needs no stock quote. */
+  quote?: { amountOut: bigint; observedAtMs: number };
   nowMs: number;
   slippageBps: number;
 };
@@ -110,13 +111,23 @@ function buildPortionlyPlan(input: PortionlyPlanInput): PortionlyPlan {
   if (![input.nowBps, input.growBps, input.investBps, input.slippageBps].every(Number.isSafeInteger)) throw new Error("Allocations must be integers");
   if (input.nowBps < 0 || input.growBps < 0 || input.investBps < 0 || input.nowBps + input.growBps + input.investBps !== 10_000) throw new Error("Allocations must sum to 100%");
   if (input.slippageBps < 0 || input.slippageBps > 100) throw new Error("Slippage cannot exceed 1%");
-  if (!Number.isSafeInteger(input.nowMs) || !Number.isSafeInteger(input.quote.observedAtMs) || input.nowMs < input.quote.observedAtMs || input.nowMs - input.quote.observedAtMs > MAX_QUOTE_AGE_MS) throw new Error("Quote is stale");
+  if (!Number.isSafeInteger(input.nowMs)) throw new Error("Clock is invalid");
+  const investing = input.investBps > 0;
+  const quote = input.quote;
+  if (investing) {
+    if (!quote) throw new Error("A live stock quote is required to invest");
+    if (!Number.isSafeInteger(quote.observedAtMs) || input.nowMs < quote.observedAtMs || input.nowMs - quote.observedAtMs > MAX_QUOTE_AGE_MS) throw new Error("Quote is stale");
+  }
 
-  const nowAmount = input.amountIn * BigInt(input.nowBps) / BPS;
-  const growAmount = input.amountIn * BigInt(input.growBps) / BPS;
-  const investAmount = input.amountIn - nowAmount - growAmount;
-  if (investAmount <= 0n || input.quote.amountOut <= 0n) throw new Error("Invest allocation and quote must be positive");
-  const investMinimumOut = input.quote.amountOut * (BPS - BigInt(input.slippageBps)) / BPS;
+  // Integer-division dust goes to the last bucket in use, so a 0% bucket always gets exactly 0.
+  let nowAmount = input.amountIn * BigInt(input.nowBps) / BPS;
+  let growAmount = input.amountIn * BigInt(input.growBps) / BPS;
+  let investAmount = 0n;
+  if (investing) investAmount = input.amountIn - nowAmount - growAmount;
+  else if (input.growBps > 0) growAmount = input.amountIn - nowAmount;
+  else nowAmount = input.amountIn;
+  if (investing && (investAmount <= 0n || !quote || quote.amountOut <= 0n)) throw new Error("Invest allocation and quote must be positive");
+  const investMinimumOut = investing && quote ? quote.amountOut * (BPS - BigInt(input.slippageBps)) / BPS : 0n;
   const deadline = BigInt(Math.floor(input.nowMs / 1_000)) + DEADLINE_SECONDS;
   const planId = keccak256(encodePacked(
     ["address", "address", "uint256", "uint256"],
