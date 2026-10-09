@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+# Portionly on Monad mainnet: split plans (SplitterV2) and time locked positions (Future).
+name: portionly
+field_selection:
+  transaction_fields:
+    - hash
+contracts:
+  - name: PortionlySplitterV2
+    handler: src/EventHandlers.ts
+    events:
+      - event: "PlanExecuted(bytes32 indexed planId, address indexed sender, address indexed recipient, uint256 nowAmount, uint256 growAmount, uint256 growShares, uint256 investAmount, uint256 investOut, bool usedFallback)"
+  - name: PortionlyFuture
+    handler: src/EventHandlers.ts
+    events:
+      - event: "PositionLocked(bytes32 indexed positionId, address indexed depositor, address indexed beneficiary, address asset, uint256 amount, uint64 unlockAt)"
+      - event: "PositionClaimed(bytes32 indexed positionId, address indexed beneficiary, address asset, uint256 amount)"
+chains:
+  - id: 143 # Monad mainnet
+    start_block: 111992400 # contracts deployed at or after 111992401
+    contracts:
+      - name: PortionlySplitterV2
+        address:
+          - "0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a"
+      - name: PortionlyFuture
+        address:
+          - "0x816fd57253CD589B76cF24B8cA1Ba38bB7818E22"

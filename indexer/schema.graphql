@@ -1,0 +1,43 @@
+"One row per executed split plan."
+type Plan {
+  id: ID! # txHash-logIndex
+  planId: String!
+  sender: String!
+  recipient: String!
+  nowAmount: BigInt!
+  growAmount: BigInt!
+  growShares: BigInt!
+  investAmount: BigInt!
+  investOut: BigInt!
+  usedFallback: Boolean!
+  blockNumber: Int!
+  timestamp: Int!
+  txHash: String!
+}
+
+"A time locked position; claimed flips when the beneficiary claims."
+type Position {
+  id: ID! # positionId hex
+  depositor: String!
+  beneficiary: String!
+  asset: String!
+  amount: BigInt!
+  unlockAt: BigInt!
+  lockedAt: Int!
+  lockTxHash: String!
+  claimed: Boolean!
+  claimedAt: Int
+  claimTxHash: String
+}
+
+"Running totals per recipient address (lowercase)."
+type Recipient {
+  id: ID!
+  totalNow: BigInt!
+  totalGrowAmount: BigInt!
+  totalGrowShares: BigInt!
+  totalInvestAmount: BigInt!
+  totalInvestOut: BigInt!
+  planCount: Int!
+  lastPlanAt: Int!
+}
