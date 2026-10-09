@@ -53,7 +53,7 @@ type Review = {
   investAmount: bigint;
   minimumOut: bigint;
 };
-type Result = { hashes: Hash[]; usedFallback: boolean; investOut: bigint; growShares: bigint };
+type Result = { hashes: Hash[]; usedFallback: boolean; investOut: bigint; growShares: bigint; plan: PortionlyPlan };
 
 const DEFAULT_ALLOCATION: Allocation = { now: "50", grow: "30", invest: "20" };
 const short = (value: string): string => `${value.slice(0, 8)}…${value.slice(-6)}`;
@@ -350,7 +350,7 @@ export default function App() {
     setProgress(null);
     try {
       const completed = await executePortionly(wallet, review.plan, setProgress);
-      setResult(completed);
+      setResult({ ...completed, plan: review.plan });
       setReview(null);
       await refresh(wallet.address);
       await refreshPeople();
@@ -571,9 +571,10 @@ export default function App() {
           {error && <Text selectable style={styles.error}>{error}</Text>}
           {result && (
             <View style={[styles.card, styles.success]}>
-              <Text style={styles.cardTitle}>Allocation verified</Text>
-              <Text style={styles.successAmount}>{result.usedFallback ? "Invest moved to Grow" : `+${formatUnits(result.investOut, 18)} aQQQ`}</Text>
-              <Text style={styles.helper}>{formatUnits(result.growShares, 6)} earnAUSD savings shares delivered.</Text>
+              <Text style={styles.cardTitle}>{result.plan.growAmount === 0n && result.plan.investAmount === 0n ? "Sent" : "Allocation verified"}</Text>
+              {result.plan.nowAmount > 0n && <Text style={styles.successAmount}>{amount(result.plan.nowAmount)} AUSD to {short(result.plan.recipient)}</Text>}
+              {result.growShares > 0n && <Text style={styles.helper}>{formatUnits(result.growShares, 6)} earnAUSD savings shares {result.plan.unlockAt > 0n ? `locked until ${new Date(Number(result.plan.unlockAt) * 1000).toDateString()}` : "delivered"}.</Text>}
+              {result.plan.investAmount > 0n && <Text style={styles.helper}>{result.usedFallback ? "The stock price moved past its limit, so the Invest part went to savings instead." : `${formatUnits(result.investOut, 18)} aQQQ delivered.`}</Text>}
               {result.hashes.map((hash) => <Text selectable key={hash} style={styles.hash}>{hash}</Text>)}
             </View>
           )}
