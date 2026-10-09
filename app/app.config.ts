@@ -6,6 +6,7 @@ if (!rpId) throw new Error("MERA_RP_ID is required to build the Android passkey 
 const config: ExpoConfig = {
   name: "Portionly",
   slug: "portionly",
+  owner: "xtrabees-team",
   version: "0.1.0",
   orientation: "portrait",
   android: {
@@ -21,6 +22,7 @@ const config: ExpoConfig = {
     ],
   ],
   extra: {
+    eas: { projectId: "58a5c9d3-6b61-4b9d-8715-4ee79f20a7e9" },
     rpId,
     splitterAddress: process.env.PORTIONLY_SPLITTER_ADDRESS ?? null,
   },

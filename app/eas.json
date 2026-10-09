@@ -1,0 +1,19 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview",
+      "env": {
+        "MERA_RP_ID": "portionly-three.vercel.app",
+        "PORTIONLY_SPLITTER_ADDRESS": "0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a"
+      }
+    }
+  }
+}
