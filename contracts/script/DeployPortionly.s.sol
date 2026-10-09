@@ -9,6 +9,7 @@ import {PortionlySplitterV2} from "../src/PortionlySplitterV2.sol";
 
 interface IAssetVault {
     function asset() external view returns (address);
+    function lpTokenAddress() external view returns (address);
 }
 
 contract DeployPortionly is Script {
@@ -20,13 +21,14 @@ contract DeployPortionly is Script {
         require(AUSD.code.length > 0, "AUSD has no code");
         require(UPSHIFT_AUSD_VAULT.code.length > 0, "Upshift vault has no code");
         require(IAssetVault(UPSHIFT_AUSD_VAULT).asset() == AUSD, "vault asset mismatch");
+        // Upshift mints shares from a separate earnAUSD token, not from the vault itself.
+        address earnAusd = IAssetVault(UPSHIFT_AUSD_VAULT).lpTokenAddress();
+        require(earnAusd.code.length > 0, "share token has no code");
 
         vm.startBroadcast();
         invest = new PortionlyAqqqInvest();
         future = new PortionlyFuture();
-        splitter = new PortionlySplitterV2(
-            IERC20(AUSD), UPSHIFT_AUSD_VAULT, IERC20(UPSHIFT_AUSD_VAULT), address(future), invest
-        );
+        splitter = new PortionlySplitterV2(IERC20(AUSD), UPSHIFT_AUSD_VAULT, IERC20(earnAusd), address(future), invest);
         vm.stopBroadcast();
     }
 }

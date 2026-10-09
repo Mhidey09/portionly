@@ -64,6 +64,10 @@ contract AqqqSwapForkTest is Test {
 
         string memory fixture = vm.readFile("test/fixtures/aqqq-swap.json");
         bytes memory routerCalldata = vm.parseJsonBytes(fixture, ".calldata");
+        // The recorded SWEEP minimum is pinned to the capture-time price; bind it to today's quote instead.
+        assembly ("memory-safe") {
+            mstore(add(routerCalldata, mload(routerCalldata)), minimumOut)
+        }
         (bool success, bytes memory result) = UNIVERSAL_ROUTER.call(routerCalldata);
         if (!success) {
             assembly ("memory-safe") {

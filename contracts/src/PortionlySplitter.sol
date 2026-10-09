@@ -24,7 +24,9 @@ interface IAUSD is IERC20 {
 }
 
 interface IPortionlyFuture {
-    function lock(bytes32 positionId, IERC20 asset, address beneficiary, uint256 amount, uint64 unlockAt) external;
+    function lock(bytes32 positionId, IERC20 asset, address beneficiary, uint256 amount, uint64 unlockAt)
+        external
+        returns (bytes32 key);
 }
 
 /// @title PortionlySplitter

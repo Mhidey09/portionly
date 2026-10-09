@@ -43,17 +43,24 @@ contract PortionlyFuture is ReentrancyGuard {
     function lock(bytes32 positionId, IERC20 asset, address beneficiary, uint256 amount, uint64 unlockAt)
         external
         nonReentrant
+        returns (bytes32 key)
     {
         if (address(asset) == address(0) || amount == 0) revert EmptyPosition();
         if (beneficiary == address(0)) revert InvalidBeneficiary();
         if (uint256(unlockAt) < block.timestamp + MIN_LOCK_DURATION) revert LockTooShort();
-        if (address(positions[positionId].asset) != address(0)) revert PositionExists();
+        // Scope ids to the depositor so nobody can squat an id seen in a pending transaction.
+        key = positionKey(msg.sender, positionId);
+        if (address(positions[key].asset) != address(0)) revert PositionExists();
 
-        positions[positionId] =
+        positions[key] =
             Position({asset: asset, beneficiary: beneficiary, amount: amount, unlockAt: unlockAt, claimed: false});
         asset.safeTransferFrom(msg.sender, address(this), amount);
 
-        emit PositionLocked(positionId, msg.sender, beneficiary, address(asset), amount, unlockAt);
+        emit PositionLocked(key, msg.sender, beneficiary, address(asset), amount, unlockAt);
+    }
+
+    function positionKey(address depositor, bytes32 positionId) public pure returns (bytes32) {
+        return keccak256(abi.encode(depositor, positionId));
     }
 
     function claim(bytes32 positionId) external nonReentrant {
