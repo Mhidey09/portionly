@@ -75,18 +75,18 @@ function WhoSection({ p, onPicked }: { p: Portionly; onPicked: () => void }) {
       <T variant="h2">Who is it for?</T>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
         {p.people.map((person) => (
-          <Chip key={person.index} label={person.name} active={!p.sendByLink && p.activeIndex === person.index} onPress={() => { p.setSendByLink(false); p.selectAccount(person.index, person.recipient); onPicked(); }} />
+          <Chip key={person.index} label={person.name} active={!p.sendByLink && p.forPerson?.index === person.index} onPress={() => { p.setSendByLink(false); p.sendToPerson(person); onPicked(); }} />
         ))}
-        <Chip label="Someone new" active={!p.sendByLink && p.activeIndex === 0} onPress={() => { p.setSendByLink(false); p.selectAccount(0, ""); }} />
+        <Chip label="Someone new" active={!p.sendByLink && p.forPerson === null} onPress={() => { p.setSendByLink(false); p.selectAccount(0, ""); }} />
         <Chip label="Send by link" active={p.sendByLink} onPress={() => { p.selectAccount(0, ""); p.setSendByLink(true); }} />
       </View>
       {p.sendByLink ? (
         <View style={{ marginTop: 14, gap: 14 }}>
           <T variant="small">For someone who has no account yet. They open the link and collect with a fingerprint.</T>
         </View>
-      ) : p.activePerson ? (
+      ) : p.forPerson ? (
         <T variant="small" style={{ marginTop: 14 }}>
-          Paying from the wallet that is only for {p.activePerson.name}.
+          {p.activePerson ? `Paying from the budget you set aside for ${p.activePerson.name}.` : `Paying ${p.forPerson.name} from your main wallet.`}
         </T>
       ) : (
         <View style={{ marginTop: 14 }}>
@@ -110,7 +110,7 @@ function WhoSection({ p, onPicked }: { p: Portionly; onPicked: () => void }) {
 function AmountSection({ p }: { p: Portionly }) {
   const input = useRef<TextInput>(null);
   const ready = p.shownBalances ? formatUsd(parseTotalBalance(p.shownBalances.ausd)) : null;
-  const who = p.activePerson ? `${p.activePerson.name}'s wallet` : "your main wallet";
+  const who = p.activePerson ? `the budget for ${p.activePerson.name}` : "your main wallet";
   return (
     <Surface style={{ alignItems: "center" }}>
       <T variant="label">You send</T>
@@ -226,7 +226,7 @@ function PortionSection({ p }: { p: Portionly }) {
 
 function ReviewView({ p }: { p: Portionly }) {
   const review = p.review!;
-  const to = p.activePerson?.name ?? shortAddress(p.recipient);
+  const to = p.forPerson?.name ?? shortAddress(p.recipient);
   const split = toSplit(p.plannedAllocation);
   const unlockAt = review.plan?.unlockAt ?? 0n;
   return (
@@ -407,9 +407,9 @@ export function Send({ p }: { p: Portionly }) {
   const split = p.mode === "grow" ? toSplit(p.allocation) : { home: 100, save: 0, stocks: 0 };
   const canReview = total > 0n && (p.sendByLink || p.recipient.trim() !== "") && p.allocationTotal === 100 && p.busy === null;
   // Step one asks only who it is for. Arriving with a person already chosen (from Home) skips straight to the amount.
-  const [step, setStep] = useState<"who" | "amount">(p.activeIndex !== 0 ? "amount" : "who");
-  const hasWho = p.sendByLink || p.activePerson !== null || /^0x[0-9a-fA-F]{40}$/.test(p.recipient.trim());
-  const whoLabel = p.sendByLink ? "By link" : p.activePerson ? `To ${p.activePerson.name}` : `To ${shortAddress(p.recipient)}`;
+  const [step, setStep] = useState<"who" | "amount">(p.forPerson ? "amount" : "who");
+  const hasWho = p.sendByLink || p.forPerson !== null || /^0x[0-9a-fA-F]{40}$/.test(p.recipient.trim());
+  const whoLabel = p.sendByLink ? "By link" : p.forPerson ? `To ${p.forPerson.name}` : `To ${shortAddress(p.recipient)}`;
 
   return (
     <Screen resetKey={p.review || linkReview ? "review" : p.busy === BUSY_SENDING || linkSending ? "sending" : step}>
@@ -444,7 +444,7 @@ export function Send({ p }: { p: Portionly }) {
             </View>
           </Rise>
           <Rise index={2}><AmountSection p={p} /></Rise>
-          {p.rates && !p.activePerson && (
+          {p.rates && !p.forPerson && (
             <Rise index={3}>
               <View style={{ gap: 8 }}>
                 <T variant="label">Show amounts in their currency</T>

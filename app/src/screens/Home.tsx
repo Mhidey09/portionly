@@ -1,6 +1,6 @@
 import * as Clipboard from "expo-clipboard";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { lockPhrase, type SentLink } from "../linkShare";
 import type { Person } from "../people";
 import { formatBalances } from "../network";
@@ -48,6 +48,8 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
   const balances = shown ? p.peopleBalances[shown.index] : undefined;
   const topUpBusy = p.busy !== null && p.busy.startsWith("Topping up");
   const unlocked = p.wallets !== null;
+  const hasBudget = balances !== undefined && balances.ausd > 0n;
+  const [budgetOpen, setBudgetOpen] = useState(false);
 
   return (
     <Sheet visible={person !== null} onClose={onClose} label={shown ? shown.name : "Person"}>
@@ -57,40 +59,61 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
             <Avatar name={shown.name} index={shown.index} size={56} />
             <View style={{ flex: 1 }}>
               <T variant="h2">{shown.name}</T>
-              <T variant="small">{balances ? `Fee balance ${trimDecimals(formatBalances(balances).mon, 3)} MON` : "Fee balance unknown"}</T>
+              <T variant="small">Someone you send to</T>
             </View>
-          </View>
-          <View>
-            <T variant="label">Set aside for {shown.name}, not sent yet</T>
-            {balances ? <Money value={Number(formatBalances(balances).ausd)} variant="display" style={{ fontSize: 44, lineHeight: 50 }} /> : <T variant="display" style={{ fontSize: 44, lineHeight: 50 }}>{unlocked ? "Loading" : "Locked"}</T>}
-            {balances && <LocalLine micro={balances.ausd} code={shown.currency} rates={p.rates} />}
           </View>
           <View style={{ gap: 8 }}>
             <T variant="label">Their currency</T>
             <CurrencyPicker label={`Currency for ${shown.name}`} value={shown.currency} onChange={(code) => void p.changePersonCurrency(shown, code)} />
           </View>
-          <T variant="small">Money you set aside for {shown.name} waits in its own wallet inside your account. It is still yours until you send it. They see that wallet, not your main balance.</T>
           {p.error && <Notice tone="error" text={p.error} />}
           {unlocked ? (
             <>
-              <Divider />
-              <Field
-                label="Amount to set aside in dollars"
-                keyboardType="decimal-pad"
-                value={p.topUpInputs[shown.index] ?? ""}
-                onChangeText={(value) => p.setTopUpInputs({ ...p.topUpInputs, [shown.index]: cleanAmountInput(value) })}
-              />
-              <Button variant="secondary" label="Set aside from my main wallet" loading={topUpBusy} disabled={p.busy !== null || (p.topUpInputs[shown.index] ?? "") === ""} onPress={() => void p.topUp(shown)} />
-              <T variant="small">The network fee is topped up for you when this wallet runs low.</T>
               <Button
                 label={`Send to ${shown.name}`}
                 disabled={p.busy !== null}
                 onPress={() => {
-                  p.selectAccount(shown.index, shown.recipient);
+                  p.sendToPerson(shown);
                   onClose();
                   go("send");
                 }}
               />
+              <Divider />
+              <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(!budgetOpen)} hitSlop={8} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <T variant="strong">Keep a budget for {shown.name}</T>
+                <T variant="small" color={colors.accent}>{budgetOpen ? "Hide" : hasBudget && balances ? formatUsd(balances.ausd) : "Optional"}</T>
+              </Pressable>
+              {budgetOpen && (
+                <>
+                  <T variant="small">Set money aside for {shown.name} in its own wallet inside your account. It is still yours until you send it, and they see that wallet, not your main balance.</T>
+                  {balances && (
+                    <View>
+                      <T variant="label">Set aside, not sent yet</T>
+                      <Money value={Number(formatBalances(balances).ausd)} variant="display" style={{ fontSize: 36, lineHeight: 42 }} />
+                      <LocalLine micro={balances.ausd} code={shown.currency} rates={p.rates} />
+                    </View>
+                  )}
+                  <Field
+                    label="Amount to set aside in dollars"
+                    keyboardType="decimal-pad"
+                    value={p.topUpInputs[shown.index] ?? ""}
+                    onChangeText={(value) => p.setTopUpInputs({ ...p.topUpInputs, [shown.index]: cleanAmountInput(value) })}
+                  />
+                  <Button variant="secondary" label="Set aside from my main wallet" loading={topUpBusy} disabled={p.busy !== null || (p.topUpInputs[shown.index] ?? "") === ""} onPress={() => void p.topUp(shown)} />
+                  {hasBudget && (
+                    <Button
+                      variant="secondary"
+                      label="Send from this budget"
+                      disabled={p.busy !== null}
+                      onPress={() => {
+                        p.selectAccount(shown.index, shown.recipient);
+                        onClose();
+                        go("send");
+                      }}
+                    />
+                  )}
+                </>
+              )}
             </>
           ) : (
             <Button label="Unlock with your fingerprint" loading={p.busy !== null} onPress={() => void p.connect("unlock")} />
@@ -413,9 +436,9 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
                         <Avatar name={person.name} index={person.index} />
                         <View style={{ flex: 1 }}>
                           <T variant="strong">{person.name}</T>
-                          <T variant="small">{balances ? "Set aside, not sent yet" : p.wallets ? "Loading" : "Unlock to see"}</T>
+                          <T variant="small">{balances && balances.ausd > 0n ? "Budget set aside" : "Tap to send"}</T>
                         </View>
-                        {balances && (
+                        {balances && balances.ausd > 0n && (
                           <View style={{ alignItems: "flex-end" }}>
                             <T variant="strong">{formatUsd(balances.ausd)}</T>
                             <LocalLine micro={balances.ausd} code={person.currency} rates={p.rates} align="right" />

@@ -144,6 +144,10 @@ export function usePortionly() {
   }
 
   const activePerson = people.find((person) => person.index === activeIndex) ?? null;
+  // Who a payment is for when it is paid from the main wallet. `activePerson` is set only when paying from that person's budget wallet.
+  const [payeeIndex, setPayeeIndex] = useState<number | null>(null);
+  const payee = activeIndex === 0 ? people.find((person) => person.index === payeeIndex) ?? null : null;
+  const forPerson = activePerson ?? payee;
   const wallet: Wallet | null = wallets?.byIndex.get(activeIndex) ?? null;
 
   const address = wallets?.main.address ?? knownAddress;
@@ -159,7 +163,7 @@ export function usePortionly() {
   const senderAddress = activeIndex === 0 ? address : wallet?.address ?? null;
   const shownBalances = useMemo(() => (balances ? formatBalances(balances) : null), [balances]);
   // The currency amounts are shown in as a second line: the saved person's, or the one picked for a one off send.
-  const sendCurrency = activePerson ? activePerson.currency : oneOffCurrency;
+  const sendCurrency = forPerson ? forPerson.currency : oneOffCurrency;
   const plannedAllocation = mode === "home" ? SEND_HOME : allocation;
   const allocationTotal = Number(plannedAllocation.now || 0) + Number(plannedAllocation.grow || 0) + Number(plannedAllocation.invest || 0);
 
@@ -346,6 +350,7 @@ export function usePortionly() {
   }
 
   function selectAccount(index: number, defaultRecipient: string): void {
+    setPayeeIndex(null);
     setActiveIndex(index);
     setRecipient(defaultRecipient);
     setReview(null);
@@ -353,6 +358,12 @@ export function usePortionly() {
     setError(null);
     const target = index === 0 ? wallets?.main.address ?? address : wallets?.byIndex.get(index)?.address;
     if (target) void refresh(target).catch((caught) => setError(describeError(caught)));
+  }
+
+  /** The everyday path: pay a saved person straight from the main wallet. */
+  function sendToPerson(person: Person): void {
+    selectAccount(0, person.recipient);
+    setPayeeIndex(person.index);
   }
 
   /** Typing or pasting a pay link or ethereum: URI becomes the plain address; anything else is left as typed and checked on send. */
@@ -458,6 +469,7 @@ export function usePortionly() {
     try {
       if (!senderAddress) throw new Error("Unlock your account first");
       if (activePerson && recipient.toLowerCase() !== activePerson.recipient.toLowerCase()) throw new Error("Recipient is fixed for this person");
+      if (payee && recipient.toLowerCase() !== payee.recipient.toLowerCase()) throw new Error("Recipient is fixed for this person");
       if (!isAddress(recipient)) throw new Error("Enter the recipient's address");
       if (senderAddress && recipient.toLowerCase() === senderAddress.toLowerCase()) throw new Error("That's your own account. Enter the address of the person you're paying.");
       const total = parseUnits(totalInput.trim(), 6);
@@ -760,7 +772,7 @@ export function usePortionly() {
   return {
     // state
     wallets, wallet, address, myLink, ready, busy, error, refreshing,
-    people, peopleBalances, activeIndex, activePerson, senderAddress,
+    people, peopleBalances, activeIndex, activePerson, payee, forPerson, sendToPerson, senderAddress,
     balances, shownBalances, savingsValue, locks, locksError, withdrawals, moneyNote, sellReview,
     recipient, totalInput, mode, lockDays, allocation, plannedAllocation, allocationTotal,
     review, progress, result, newName, newRecipient, topUpInputs,

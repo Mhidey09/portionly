@@ -55,10 +55,10 @@ function Root() {
   // Wallets other than Main only matter on the Send tab, so go back to Main anywhere else.
   const go = useCallback(
     (next: TabKey) => {
-      if (next !== "send" && p.activeIndex !== 0) p.selectAccount(0, "");
+      if (next !== "send" && (p.activeIndex !== 0 || p.payee)) p.selectAccount(0, "");
       setTab(next);
     },
-    [p.activeIndex, p.selectAccount], // eslint-disable-line react-hooks/exhaustive-deps
+    [p.activeIndex, p.payee, p.selectAccount], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   useEffect(() => {
