@@ -21,6 +21,8 @@ test("landing explains the product and the slip responds to the mode", async ({ 
 
 test("the slip lines move with the keyboard and always total 100%", async ({ page }) => {
   await page.goto("/");
+  // Touching the slip stops its showreel, so the split below is the one the visitor set.
+  await page.getByRole("tab", { name: "Send + grow" }).click();
   await page.getByRole("button", { name: "Move the line between home now and savings" }).press("ArrowRight");
   await expect(page.locator(".slip-rows output")).toHaveText(["$110.00", "$50.00", "$40.00"]);
   await page.getByRole("button", { name: "Move the line between savings and stocks" }).press("ArrowLeft");

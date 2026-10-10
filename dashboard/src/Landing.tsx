@@ -56,12 +56,13 @@ export default function Landing() {
   return (
     <div className="landing">
       <section className="hero">
+        <div className="pearls" aria-hidden="true"><i /><i /><i /><b /></div>
         <div className="hero-copy">
           <p className="eyebrow">Money home, on Monad</p>
           <h1>
             Send money home.
             <br />
-            <em>Decide what it becomes.</em>
+            Decide <em>what it becomes.</em>
           </h1>
           <p className="lede">
             One payment can pay today's bills, build savings that earn, and buy a piece of the stock market. You choose the portions. It all lands in their own account in seconds.
@@ -76,8 +77,8 @@ export default function Landing() {
       </section>
 
       <section className="steps" data-reveal>
-        <h2>Three taps from your phone to theirs.</h2>
-        <div className="phones">
+        <h2>Three taps from <em>your phone</em> to theirs.</h2>
+        <div className="phones stagger">
           <Phone label="1. Open your account with a fingerprint" tilt={-4}>
             <div className="scr scr-start">
               <span className="scr-brand">portionly</span>
@@ -121,10 +122,10 @@ export default function Landing() {
 
       <section className="split-story" data-reveal>
         <div>
-          <h2>Not every dollar has the same job.</h2>
+          <h2>Not every dollar has <em>the same job.</em></h2>
           <p>Some of it is for this week. Some of it should still be there next year. Portionly lets the sender say so, in the same payment.</p>
         </div>
-        <ol className="jobs">
+        <ol className="jobs stagger">
           <li className="home">
             <span>Home now</span>
             <p>Digital dollars they can spend or pass on right away.</p>
@@ -155,7 +156,7 @@ export default function Landing() {
           </ul>
         </div>
         <div>
-          <h2>One fingerprint. A wallet for each person.</h2>
+          <h2>One fingerprint. <em>A wallet for each person.</em></h2>
           <p>Add the people you send to. Each one gets their own wallet inside your account, with its own budget and its own history. They see the wallet that pays them, never your whole balance.</p>
         </div>
       </section>

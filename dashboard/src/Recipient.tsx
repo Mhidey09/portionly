@@ -4,6 +4,12 @@ import { SlipBar } from "./Slip";
 import { explorerAddress, readRecipient, type RecipientSnapshot } from "./data";
 import { explorerTx, formatDate, loadHistory, trimAmount, type HistoryState, type PlanRow } from "./history";
 import { apkLink } from "./payRoute";
+import { useTween } from "./motion";
+
+function Dollars({ value, testId }: { value: string; testId: string }) {
+  const shown = useTween(Number(value), 900);
+  return <strong data-testid={testId}>${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>;
+}
 
 const apkUrl = apkLink(import.meta.env.VITE_APK_URL);
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -96,12 +102,12 @@ export default function Recipient({ address }: { address: Address }) {
           <ul className="holdings" aria-label="Live balance">
             <li className="home">
               <span>Ready to spend</span>
-              <strong data-testid="spend">${cents(snapshot.ausd)}</strong>
+              <Dollars value={snapshot.ausd} testId="spend" />
               <p>Digital dollars (AUSD). Spend them or pass them on.</p>
             </li>
             <li className="save">
               <span>Savings</span>
-              <strong data-testid="savings">{snapshot.earnValue !== null ? `$${cents(snapshot.earnValue)}` : `${trimAmount(snapshot.earn)} shares`}</strong>
+              {snapshot.earnValue !== null ? <Dollars value={snapshot.earnValue} testId="savings" /> : <strong data-testid="savings">{trimAmount(snapshot.earn)} shares</strong>}
               <p>
                 {snapshot.earnValue !== null ? "What it is worth today if withdrawn. " : "Value is shown when withdrawn. "}
                 Earning in a savings vault. Earnings are not guaranteed.

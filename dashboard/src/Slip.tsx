@@ -1,4 +1,5 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { reduced, useTween } from "./motion";
 
 export type Mode = "home" | "grow";
 export type Split = { home: number; save: number; stocks: number };
@@ -88,12 +89,36 @@ export function SlipBar({ split, onChange, compact = false }: { split: Split; on
   );
 }
 
+function Counted({ value }: { value: number }) {
+  return <output>{money(useTween(value))}</output>;
+}
+
+// What the slip shows by itself until someone touches it.
+const SHOWREEL: { mode: Mode; split: Split }[] = [
+  { mode: "grow", split: { home: 50, save: 30, stocks: 20 } },
+  { mode: "grow", split: { home: 70, save: 20, stocks: 10 } },
+  { mode: "home", split: { home: 50, save: 30, stocks: 20 } },
+  { mode: "grow", split: { home: 40, save: 40, stocks: 20 } },
+];
+
 /** The hero: pick an amount, choose send home or send and grow, drag the lines. An example, not a quote. */
 export default function Slip() {
   const [mode, setMode] = useState<Mode>("grow");
   const [amount, setAmount] = useState(200);
   const [custom, setCustom] = useState<Split>({ home: 50, save: 30, stocks: 20 });
+  const [touched, setTouched] = useState(false);
   const split = mode === "home" ? { home: 100, save: 0, stocks: 0 } : custom;
+
+  useEffect(() => {
+    if (touched || reduced()) return;
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index = (index + 1) % SHOWREEL.length;
+      setMode(SHOWREEL[index].mode);
+      setCustom(SHOWREEL[index].split);
+    }, 3600);
+    return () => window.clearInterval(timer);
+  }, [touched]);
 
   const rows = [
     { key: "home", name: "Home now", what: "Arrives in seconds as digital dollars, ready to spend.", share: split.home },
@@ -102,7 +127,7 @@ export default function Slip() {
   ] as const;
 
   return (
-    <div className="slip" data-mode={mode}>
+    <div className="slip" data-mode={mode} onPointerDown={() => setTouched(true)} onKeyDown={() => setTouched(true)} onFocus={() => setTouched(true)}>
       <div className="slip-top">
         <div className="mode" role="tablist" aria-label="How to send">
           <button role="tab" aria-selected={mode === "home"} onClick={() => setMode("home")}>Send home</button>
@@ -133,7 +158,7 @@ export default function Slip() {
               <strong>{row.name}</strong>
               <p>{row.what}</p>
             </div>
-            <output>{money((amount * row.share) / 100)}</output>
+            <Counted value={(amount * row.share) / 100} />
           </li>
         ))}
       </ul>
