@@ -7,15 +7,18 @@ const config: ExpoConfig = {
   name: "Portionly",
   slug: "portionly",
   owner: "xtrabees-team",
-  version: "0.2.0",
+  version: "0.3.0",
+  icon: "./assets/icon.png",
   orientation: "portrait",
   runtimeVersion: { policy: "appVersion" },
   updates: { url: "https://u.expo.dev/58a5c9d3-6b61-4b9d-8715-4ee79f20a7e9" },
   android: {
     package: "com.portionly.app",
+    adaptiveIcon: { foregroundImage: "./assets/adaptive-foreground.png", backgroundColor: "#ffffff" },
     versionCode: 1,
   },
   plugins: [
+    ["expo-splash-screen", { backgroundColor: "#e6f2fd", image: "./assets/splash-mark.png", imageWidth: 120 }],
     [
       "expo-secure-store",
       {

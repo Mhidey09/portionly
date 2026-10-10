@@ -128,10 +128,12 @@ type Props = {
   error: string | null;
   onCreate: () => void;
   onSignIn: () => void;
+  /** Set when this phone already has an account: the last page just unlocks it. */
+  onContinue?: () => void;
 };
 
 /** Three swipeable pages. The last one creates or opens the account. */
-export function Onboarding({ lastPageOnly, busy, error, onCreate, onSignIn }: Props) {
+export function Onboarding({ lastPageOnly, busy, error, onCreate, onSignIn, onContinue }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scroll = useRef<ScrollView>(null);
@@ -211,8 +213,14 @@ export function Onboarding({ lastPageOnly, busy, error, onCreate, onSignIn }: Pr
         {page === 2 ? (
           <Rise>
             <View style={{ gap: 12 }}>
-              <Button label="Create my account" onPress={onCreate} loading={busy !== null} />
-              <Button variant="secondary" label="I already have an account" onPress={onSignIn} disabled={busy !== null} />
+              {onContinue ? (
+                <Button label="Continue with my fingerprint" onPress={onContinue} loading={busy !== null} />
+              ) : (
+                <>
+                  <Button label="Create my account" onPress={onCreate} loading={busy !== null} />
+                  <Button variant="secondary" label="I already have an account" onPress={onSignIn} disabled={busy !== null} />
+                </>
+              )}
             </View>
           </Rise>
         ) : (

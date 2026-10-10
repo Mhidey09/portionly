@@ -25,13 +25,23 @@ function Root() {
     loadOnboarded().then(setOnboarded).catch(() => setOnboarded(false));
   }, []);
 
-  // Once an account exists the intro never shows again.
+  // The intro shows once on every phone, and ends when the account is open.
   useEffect(() => {
-    if (p.address && onboarded === false) {
+    if (p.wallets && onboarded === false) {
       setOnboarded(true);
       void saveOnboarded().catch(() => undefined);
     }
-  }, [p.address, onboarded]);
+  }, [p.wallets, onboarded]);
+
+  // Returning users get the fingerprint prompt straight away, once, instead of hunting for an unlock button.
+  const [askedUnlock, setAskedUnlock] = useState(false);
+  useEffect(() => {
+    if (!splashDone || !p.ready || onboarded !== true || askedUnlock) return;
+    if (p.address && !p.wallets && p.busy === null) {
+      setAskedUnlock(true);
+      void p.connect("unlock");
+    }
+  }, [splashDone, p.ready, onboarded, askedUnlock, p.address, p.wallets, p.busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", () => setKeyboard(true));
@@ -73,8 +83,17 @@ function Root() {
 
   const loaded = p.ready && onboarded !== null;
   let body = <View style={{ flex: 1, backgroundColor: colors.sky }} />;
-  if (loaded && !p.address) {
-    body = <Onboarding lastPageOnly={onboarded === true} busy={p.busy} error={p.error} onCreate={() => void p.connect("create")} onSignIn={() => void p.connect("signin")} />;
+  if (loaded && (!p.address || onboarded === false)) {
+    body = (
+      <Onboarding
+        lastPageOnly={onboarded === true}
+        busy={p.busy}
+        error={p.error}
+        onCreate={() => void p.connect("create")}
+        onSignIn={() => void p.connect("signin")}
+        onContinue={p.address ? () => void p.connect("unlock") : undefined}
+      />
+    );
   } else if (loaded) {
     body = (
       <View style={{ flex: 1 }}>

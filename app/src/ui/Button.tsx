@@ -63,15 +63,6 @@ export function Button({ label, onPress, variant = "primary", disabled = false, 
             {label}
           </T>
         )}
-        {primary && !inactive && width > 0 && (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.sheen,
-              { transform: [{ translateX: sheen.interpolate({ inputRange: [0, 1], outputRange: [-90, width + 90] }) }, { skewX: "-20deg" }] },
-            ]}
-          />
-        )}
       </Pressable>
     </Animated.View>
   );
