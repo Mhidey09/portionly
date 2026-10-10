@@ -185,12 +185,12 @@ function PortionSection({ p }: { p: Portionly }) {
       {growing && (
         <>
           <View style={{ height: 14 }} />
-          <Row name="Savings that earn" note="Earnings are not guaranteed" amount={dollars(amounts.save)} color={portionColors.save.bg} fg={portionColors.save.fg} off={split.save === 0} />
+          <Row name="Savings that earn" note="Kept in a savings vault" amount={dollars(amounts.save)} color={portionColors.save.bg} fg={portionColors.save.fg} off={split.save === 0} />
           <View style={{ height: 14 }} />
-          <Row name="US tech stocks" note="Tracks the Nasdaq 100" amount={dollars(amounts.stocks)} color={portionColors.stocks.bg} fg={portionColors.stocks.fg} off={split.stocks === 0} />
+          <Row name="US tech stocks" note="Apple, Nvidia, Amazon and more" amount={dollars(amounts.stocks)} color={portionColors.stocks.bg} fg={portionColors.stocks.fg} off={split.stocks === 0} />
           <Divider />
           {split.stocks > 0 && (
-            <T variant="small" style={{ marginBottom: 10 }}>aQQQ tracks the Nasdaq 100. It is not direct share ownership. If the stock price moves more than 1% while sending, that part goes to savings instead.</T>
+            <T variant="small" style={{ marginBottom: 10 }}>If the stock price moves more than 1% while sending, that part goes to savings instead.</T>
           )}
           <T variant="label" color={colors.ink}>Keep savings locked for</T>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
@@ -227,7 +227,7 @@ function ReviewView({ p }: { p: Portionly }) {
           {review.growAmount > 0n && (
             <>
               <View style={{ height: 14 }} />
-              <Row name="Savings that earn" note={unlockAt > 0n ? `Locked until ${dateOf(unlockAt)}` : "Earnings are not guaranteed"} amount={dollars(review.growAmount)} color={portionColors.save.bg} fg={portionColors.save.fg} off={false} />
+              <Row name="Savings that earn" note={unlockAt > 0n ? `Locked until ${dateOf(unlockAt)}` : "Open any time"} amount={dollars(review.growAmount)} color={portionColors.save.bg} fg={portionColors.save.fg} off={false} />
             </>
           )}
           {review.investAmount > 0n && (
@@ -235,13 +235,12 @@ function ReviewView({ p }: { p: Portionly }) {
               <View style={{ height: 14 }} />
               <Row
                 name="US tech stocks"
-                note={review.quote ? `About ${trimDecimals(formatUnits(review.quote.amountOut, 18), 4)} aQQQ, at least ${trimDecimals(formatUnits(review.minimumOut, 18), 4)}` : "Tracks the Nasdaq 100"}
+                note={review.quote ? `About ${trimDecimals(formatUnits(review.quote.amountOut, 18), 4)} fund shares at the live price` : "Apple, Nvidia, Amazon and more"}
                 amount={dollars(review.investAmount)}
                 color={portionColors.stocks.bg}
                 fg={portionColors.stocks.fg}
                 off={false}
               />
-              <T variant="small" style={{ marginTop: 10 }}>aQQQ tracks the Nasdaq 100. It is not direct share ownership.</T>
             </>
           )}
           <Divider />
@@ -304,7 +303,7 @@ export function Send({ p }: { p: Portionly }) {
   const canReview = total > 0n && p.recipient.trim() !== "" && p.allocationTotal === 100 && p.busy === null;
 
   return (
-    <Screen>
+    <Screen resetKey={p.review ? "review" : p.busy === BUSY_SENDING ? "sending" : "form"}>
       <LockBanner p={p} />
       {sending ? (
         <SendingView p={p} />
@@ -384,10 +383,9 @@ export function SendSuccess({ p, onDone }: { p: Portionly; onDone: () => void })
                 <T variant="body">
                   {result.usedFallback
                     ? "The stock price moved more than 1%, so the stocks part went to savings instead."
-                    : `${trimDecimals(formatUnits(result.investOut, 18), 4)} aQQQ of US tech stocks arrived.`}
+                    : `${formatUsd(plan.investAmount)} went into US tech stocks.`}
                 </T>
               )}
-              <T variant="small">Earnings are not guaranteed. aQQQ tracks the Nasdaq 100. It is not direct share ownership.</T>
             </View>
           </Surface>
         </Rise>
