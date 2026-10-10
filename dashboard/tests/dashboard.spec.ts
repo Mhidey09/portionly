@@ -37,3 +37,19 @@ test("shows a non-zero live earnAUSD balance for a real plan recipient", async (
   await expect(card.locator("strong")).not.toHaveText(/^0 /);
   await expect(card.getByText(/Redemption value now: [0-9.]+ AUSD/)).toBeVisible();
 });
+
+test("/pay/<address> shows who to pay and loads their balances", async ({ page }) => {
+  const payee = "0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2";
+  await page.goto(`/pay/${payee}`);
+  await expect(page.getByRole("heading", { name: "Pay this person with Portionly" })).toBeVisible();
+  await expect(page.getByTestId("pay-address")).toHaveText(payee);
+  await expect(page.getByText("Live balance", { exact: true })).toBeVisible({ timeout: 30_000 });
+  // No APK URL is configured in tests, so no download link is invented.
+  await expect(page.getByRole("link", { name: "Get the Android app" })).toHaveCount(0);
+});
+
+test("/pay with a malformed address fails closed", async ({ page }) => {
+  await page.goto("/pay/0x123");
+  await expect(page.getByRole("alert").first()).toHaveText("This pay link does not contain a valid address.");
+  await expect(page.getByText("Live balance", { exact: true })).toHaveCount(0);
+});

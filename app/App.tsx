@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
+  Share,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -11,6 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { formatUnits, isAddress, parseUnits, type Address, type Hash } from "viem";
 import { gasTopUpFor } from "./src/funding";
@@ -29,6 +31,7 @@ import {
   type Quote,
 } from "./src/network";
 import { buildPortionlyPlan, LOCK_DAYS, type LockDays, type PortionlyPlan } from "./src/portionlyPlan";
+import { parseRecipientInput, receiveLink } from "./src/receive";
 import { canClaim, fetchLocks, type LockedSaving } from "./src/locks";
 import { loadAccount, loadPeople, savePeople } from "./src/storage";
 import {
@@ -133,6 +136,14 @@ export default function App() {
   const wallet: Wallet | null = wallets?.byIndex.get(activeIndex) ?? null;
 
   const address = wallets?.main.address ?? knownAddress;
+  const myLink = useMemo(() => {
+    if (!address) return null;
+    try {
+      return receiveLink(address);
+    } catch {
+      return null;
+    }
+  }, [address]);
   // The account that pays in the Payment card: Main, or the selected person's own account.
   const senderAddress = activeIndex === 0 ? address : wallet?.address ?? null;
   const shownBalances = useMemo(() => (balances ? formatBalances(balances) : null), [balances]);
@@ -240,11 +251,41 @@ export default function App() {
     if (target) void refresh(target).catch((caught) => setError(describeError(caught)));
   }
 
+  /** Typing or pasting a pay link or ethereum: URI becomes the plain address; anything else is left as typed and checked on send. */
+  function normalizeTyped(value: string): string {
+    const trimmed = value.trim();
+    if (!/[/:\s]/.test(trimmed)) return trimmed;
+    try {
+      return parseRecipientInput(trimmed);
+    } catch {
+      return trimmed;
+    }
+  }
+
+  async function pasteRecipient(): Promise<void> {
+    setError(null);
+    try {
+      const text = await Clipboard.getStringAsync();
+      setRecipient(parseRecipientInput(text));
+      setReview(null);
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
+  async function shareLink(link: string): Promise<void> {
+    try {
+      await Share.share({ message: `Pay me with Portionly: ${link}` });
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
   async function submitPerson(): Promise<void> {
     setError(null);
     setBusy("Adding person");
     try {
-      const next = addPerson(people, newName, newRecipient);
+      const next = addPerson(people, newName, parseRecipientInput(newRecipient));
       await savePeople(next);
       setPeople(next);
       setNewName("");
@@ -400,6 +441,18 @@ export default function App() {
 
           {address && (
             <>
+              {myLink && (
+                <View style={styles.card}>
+                  <Text style={styles.cardTitle}>Receive</Text>
+                  <Text style={styles.helper}>Share this so people can pay you</Text>
+                  <View style={styles.qrBox}><QRCode value={myLink} size={200} /></View>
+                  <Text selectable style={styles.address}>{myLink}</Text>
+                  <View style={styles.twoButtons}>
+                    <View style={styles.flex}><Button secondary label="Copy link" onPress={() => void Clipboard.setStringAsync(myLink)} /></View>
+                    <View style={styles.flex}><Button label="Share" onPress={() => void shareLink(myLink)} /></View>
+                  </View>
+                </View>
+              )}
               <View style={styles.card}>
                 <View style={styles.row}>
                   <Text style={styles.cardTitle}>{activePerson ? `Send to ${activePerson.name}` : "Payment"}</Text>
@@ -411,12 +464,13 @@ export default function App() {
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!activePerson}
-                  onChangeText={(value) => { setRecipient(value.trim()); setReview(null); }}
+                  onChangeText={(value) => { setRecipient(normalizeTyped(value)); setReview(null); }}
                   placeholder="0x…"
                   placeholderTextColor="#A19F99"
                   style={styles.textInput}
                   value={recipient}
                 />
+                {!activePerson && <Button secondary label="Paste" onPress={() => void pasteRecipient()} disabled={busy !== null} />}
                 <Text style={styles.fieldLabel}>TOTAL AUSD</Text>
                 <TextInput
                   keyboardType="decimal-pad"
@@ -538,7 +592,7 @@ export default function App() {
               })}
               <Text style={styles.fieldLabel}>ADD PERSON</Text>
               <TextInput maxLength={32} onChangeText={setNewName} placeholder="Name" placeholderTextColor="#A19F99" style={styles.textInput} value={newName} />
-              <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={setNewRecipient} placeholder="Recipient address 0x…" placeholderTextColor="#A19F99" style={styles.textInput} value={newRecipient} />
+              <TextInput autoCapitalize="none" autoCorrect={false} onChangeText={(value) => setNewRecipient(normalizeTyped(value))} placeholder="Address or pay link" placeholderTextColor="#A19F99" style={styles.textInput} value={newRecipient} />
               <Button label="Add person" onPress={() => void submitPerson()} disabled={busy !== null || newName.trim() === "" || newRecipient.trim() === ""} />
             </View>
           )}
@@ -599,6 +653,7 @@ const styles = StyleSheet.create({
   eyebrow: { color: "#5B645E", fontSize: 10, fontWeight: "700", letterSpacing: 1.5 },
   title: { color: "#202622", fontSize: 38, fontWeight: "700", letterSpacing: -1.7, lineHeight: 42 },
   subtitle: { color: "#676C68", fontSize: 15, lineHeight: 23, maxWidth: 500 },
+  qrBox: { alignItems: "center", backgroundColor: "#FFFFFF", padding: 8 },
   card: { backgroundColor: "#FFFFFF", borderColor: "#E7E4DE", borderWidth: 1, borderRadius: 12, padding: 18, gap: 14 },
   reviewCard: { borderColor: "#9EA9A2" },
   cardTitle: { color: "#202622", fontSize: 18, fontWeight: "600" },

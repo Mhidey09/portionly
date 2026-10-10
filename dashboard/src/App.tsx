@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import type { Address } from "viem";
 import HistorySection from "./HistorySection";
 import { loadHistory, type HistoryState } from "./history";
+import { apkLink, parsePayPath } from "./payRoute";
 import { explorerAddress, parseRecipient, readRecipient, type RecipientSnapshot } from "./data";
 
 function short(address: string) {
@@ -14,7 +15,11 @@ function amount(value: string, max = 6) {
   return trimmed ? `${whole}.${trimmed}` : whole;
 }
 
+const payRoute = parsePayPath(window.location.pathname);
+const apkUrl = apkLink(import.meta.env.VITE_APK_URL);
+
 function initialAddress() {
+  if (payRoute && "address" in payRoute) return payRoute.address;
   return new URLSearchParams(window.location.search).get("recipient") ?? "";
 }
 
@@ -36,9 +41,11 @@ export default function App() {
       setSnapshot(next);
       setStatus("ready");
       void historyRequest.then(setHistory);
-      const url = new URL(window.location.href);
-      url.searchParams.set("recipient", recipient);
-      window.history.replaceState({}, "", url);
+      if (!payRoute) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("recipient", recipient);
+        window.history.replaceState({}, "", url);
+      }
     } catch (cause) {
       setSnapshot(null);
       setError(cause instanceof Error ? cause.message : "Could not read Monad balances.");
@@ -65,6 +72,20 @@ export default function App() {
         <a className="brand" href="/" aria-label="Portionly home">portionly</a>
         <span className="network">Monad mainnet</span>
       </header>
+
+      {payRoute && (
+        <section className="pay-block" aria-labelledby="pay-title">
+          <h2 id="pay-title">Pay this person with Portionly</h2>
+          {"address" in payRoute ? (
+            <p className="pay-address" data-testid="pay-address">{payRoute.address}</p>
+          ) : (
+            <p className="form-error" role="alert">{payRoute.error}</p>
+          )}
+          {apkUrl && (
+            <p className="help">New to Portionly? <a href={apkUrl} rel="noreferrer">Get the Android app</a></p>
+          )}
+        </section>
+      )}
 
       <section className="intro" aria-labelledby="page-title">
         <p className="kicker">Recipient view</p>
