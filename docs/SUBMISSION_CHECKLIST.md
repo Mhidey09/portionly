@@ -6,7 +6,7 @@ Ticked only from the live product and the chain, never from intent. Deadline: 13
 
 - [x] Working product on Monad mainnet (contracts in `docs/DEPLOYMENTS.md`)
 - [ ] Public project profile with demo, short write up and code link
-- [ ] Repository public before the profile links it
+- [x] Repository public
 - [ ] Demo video
 - [x] Contract addresses and transaction hashes recorded (`docs/DEPLOYMENTS.md`, `docs/evidence/`)
 
@@ -28,7 +28,7 @@ Requirement: a mobile app letting users send AUSD across borders using Mera pass
 ## Monad Foundation: Mera, One Passkey, Many Keys
 
 - [x] One passkey derives a main wallet plus a separate wallet per person (BIP 44 index, as Mera's guide recommends); code and tests in `app/src/hd.ts`, `app/src/people.ts`, `app/src/wallet.ts`
-- [ ] Shown working on a physical phone: add a person, top up their wallet, send from it
+- [x] Shown working on a physical phone: a person added, money set aside in their wallet, a payment sent from it (`docs/evidence/2026-10-10-many-keys.md`)
 
 ## Envio: Best Use of Envio
 
