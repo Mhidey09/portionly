@@ -3,8 +3,11 @@ import { createPublicClient, formatUnits, http, type Address, type Hex } from "v
 import { privateKeyToAddress } from "viem/accounts";
 import { monad } from "viem/chains";
 import { SlipBar } from "./Slip";
+import CurrencySelect from "./CurrencySelect";
+import { REFERENCE_NOTE } from "./currency";
 import { apkLink } from "./payRoute";
 import { APK_URL } from "./release";
+import { localFromDollars, useCurrency, useRates } from "./useRates";
 
 const LINK_CONTRACT: Address = "0x67BCA6463B917940199c322C4b5678044936EdC7";
 const paymentsAbi = [
@@ -62,6 +65,14 @@ async function load(key: Hex): Promise<State> {
 export default function Claim() {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [copied, setCopied] = useState(false);
+  const { rates } = useRates();
+  const [chosen, setCurrency] = useCurrency();
+  // Only a currency with a fresh rate is ever shown.
+  const cur = rates && rates.rates[chosen] ? chosen : "";
+  const local = (units: bigint) => {
+    const text = localFromDollars(formatUnits(units, 6), cur, rates);
+    return text ? <small className="local">{text}</small> : null;
+  };
 
   useEffect(() => {
     const key = keyFromHash(window.location.hash);
@@ -140,6 +151,13 @@ export default function Claim() {
         <h1>
           <em data-testid="claim-total">{usd(total)}</em> is waiting for you.
         </h1>
+        {cur && <small className="local" data-testid="claim-local">{localFromDollars(formatUnits(total, 6), cur, rates)}</small>}
+        {rates && (
+          <div className="cur-row">
+            <CurrencySelect label="Show in my currency" value={cur} onChange={setCurrency} />
+            {cur && <p className="quiet">{REFERENCE_NOTE}</p>}
+          </div>
+        )}
       </header>
 
       <div className="claim-slip">
@@ -152,7 +170,7 @@ export default function Claim() {
                 <strong>Ready to spend</strong>
                 <p>Digital dollars you can use right away.</p>
               </div>
-              <output>{usd(view.home)}</output>
+              <output>{usd(view.home)}{local(view.home)}</output>
             </li>
           )}
           {view.save > 0n && (
@@ -162,7 +180,7 @@ export default function Claim() {
                 <strong>{view.lockDays > 0 ? "Locked savings" : "Savings that earn"}</strong>
                 <p>{view.lockDays > 0 ? `Kept safe and ${lockText(view.lockDays)}.` : "Kept in a savings vault. Take it out when you like."}</p>
               </div>
-              <output>{usd(view.save)}</output>
+              <output>{usd(view.save)}{local(view.save)}</output>
             </li>
           )}
           {view.stocks > 0n && (
@@ -172,7 +190,7 @@ export default function Claim() {
                 <strong>US tech stocks</strong>
                 <p>Bought at the live price when you collect.</p>
               </div>
-              <output>{usd(view.stocks)}</output>
+              <output>{usd(view.stocks)}{local(view.stocks)}</output>
             </li>
           )}
         </ul>

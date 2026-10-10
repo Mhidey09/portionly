@@ -106,5 +106,19 @@ async function cancelLink(wallet: Wallet, link: Address, onUpdate: (update: Exec
   return sendCalls(wallet, [buildCancelCall(link)], onUpdate);
 }
 
-export { cancelLink, claimLink, readLinkPayment, readSentLinks };
+/**
+ * Sends whatever fee balance a link still holds to `to`. Used after a take back, so the 0.3 MON the
+ * sender gave the link comes home, and it is safe to call on any link this phone holds the key for.
+ */
+async function sweepLinkFee(key: Hex, to: Address): Promise<Hash | undefined> {
+  const account = privateKeyToAccount(key);
+  const left = sweepAmount(await publicClient.getBalance({ address: account.address }));
+  if (left === 0n) return undefined;
+  const client = createWalletClient({ account, chain: monad, transport: http(MONAD_RPC_URL) });
+  const hash = await client.sendTransaction({ account, chain: monad, to, value: left });
+  await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+  return hash;
+}
+
+export { cancelLink, claimLink, readLinkPayment, readSentLinks, sweepLinkFee };
 export type { LinkPayment };

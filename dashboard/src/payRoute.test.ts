@@ -37,7 +37,12 @@ describe("vercel.json", () => {
   it("rewrites /pay/* to the SPA", () => {
     expect(matches(`/pay/${checksummed}`)).toBe(true);
     expect(matches("/proof")).toBe(true);
+    expect(matches("/claim")).toBe(true);
     expect(config.rewrites.every((r) => r.destination === "/index.html")).toBe(true);
+  });
+  it("only rewrites the claim page itself, never a path under it or a lookalike", () => {
+    expect(matches("/claim/extra")).toBe(false);
+    expect(matches("/claims")).toBe(false);
   });
   it("never rewrites assetlinks.json or other static paths", () => {
     expect(matches("/.well-known/assetlinks.json")).toBe(false);

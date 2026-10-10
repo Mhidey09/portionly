@@ -359,3 +359,25 @@ main { max-width: 72rem; margin: 0 auto; padding: 0 1.1rem; }
 .slip-amt { display: grid; justify-items: end; gap: 0.1rem; }
 .slip-cur { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .slip-cur p { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+/* Money link page: what is waiting, then how to collect it. */
+.claim h1 { font-size: clamp(2rem, 8.5vw, 3.6rem); }
+.claim h1 em { color: var(--accent); font-style: normal; font-variant-numeric: tabular-nums; }
+.claim .recipient-head .local { font-size: 1.05rem; }
+.claim-slip { display: grid; gap: 1.1rem; background: var(--surface); border-radius: 1.75rem; padding: 1.25rem; box-shadow: var(--shadow); }
+.claim-slip .slip-rows { display: block; }
+.claim-slip .slip-rows li { grid-template-columns: auto 1fr auto; column-gap: 0.8rem; border-top: 1px solid var(--line); }
+.claim-slip .slip-rows li:first-child { border-top: 0; padding-top: 0.2rem; }
+.claim-slip .slip-rows output { grid-column: auto; display: grid; justify-items: end; gap: 0.1rem; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.02em; }
+.claim-slip .slip-rows output .local { font-size: 0.82rem; font-weight: 500; }
+.claim .next { gap: 1rem; }
+.claim .next h2 { font-size: clamp(1.4rem, 5.5vw, 2rem); }
+.claim-steps { list-style: none; counter-reset: claim-step; margin: 0; padding: 0; display: grid; gap: 0.9rem; max-width: 34rem; }
+.claim-steps li { counter-increment: claim-step; position: relative; padding-left: 2.9rem; min-height: 2rem; padding-top: 0.2rem; color: var(--ink); }
+.claim-steps li::before { content: counter(claim-step); position: absolute; left: 0; top: 0; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 0.95rem; }
+.claim .next .cta { justify-content: flex-start; }
+.claim .next .cta .button { flex: 1 1 12rem; max-width: 22rem; }
+
+/* Landing: send to someone with no account */
+.link-send { display: grid; gap: 0.9rem; justify-items: center; text-align: center; }
+.link-send p { color: var(--muted); max-width: 32rem; }

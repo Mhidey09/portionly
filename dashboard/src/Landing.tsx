@@ -3,7 +3,7 @@ import Slip, { SlipBar } from "./Slip";
 import { loadTotals, type Totals } from "./totals";
 import { apkLink } from "./payRoute";
 import { APK_URL } from "./release";
-import { parseRecipientLink } from "./recipientLink";
+import { claimTarget, parseRecipientLink } from "./recipientLink";
 
 const apkUrl = apkLink(APK_URL);
 
@@ -47,6 +47,12 @@ export default function Landing() {
 
   function openRecipient(event: FormEvent) {
     event.preventDefault();
+    // A money link goes to the page that says how to collect it. Its key stays after the #.
+    const claim = claimTarget(link);
+    if (claim) {
+      window.location.assign(claim);
+      return;
+    }
     try {
       window.location.assign(`/pay/${parseRecipientLink(link)}`);
     } catch (cause) {
@@ -162,9 +168,14 @@ export default function Landing() {
         </div>
       </section>
 
+      <section className="link-send" data-reveal>
+        <h2>No account yet? <em>Send them a link.</em></h2>
+        <p>They collect with a fingerprint. To be sent money they need no account, no address and no fee coin.</p>
+      </section>
+
       <section className="received" id="received" data-reveal>
         <h2>Were you sent money?</h2>
-        <p>Paste the link or address you were given to see what arrived. You don't need an account to look.</p>
+        <p>Paste the link or address you were given to see what arrived. A money link shows you how to collect it. You don't need an account to look.</p>
         <form onSubmit={openRecipient} noValidate>
           <label htmlFor="recipient-link" className="sr-only">Your Portionly link or address</label>
           <input

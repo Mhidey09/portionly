@@ -1,15 +1,21 @@
 import * as Clipboard from "expo-clipboard";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View } from "react-native";
+import { lockPhrase, type SentLink } from "../linkShare";
 import type { Person } from "../people";
 import { formatBalances } from "../network";
-import type { Portionly } from "../usePortionly";
+import { BUSY_COLLECT, BUSY_TAKE_BACK, type ClaimCheck, type Portionly } from "../usePortionly";
 import { Button, ButtonRow } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { CurrencyPicker, LocalLine, RateNote, showsLocal } from "../ui/Local";
 import { LockBanner } from "../ui/LockBanner";
 import { Money } from "../ui/Money";
 import { Notice } from "../ui/Notice";
+import { Tick } from "../ui/Icons";
+import { PortionRows } from "../ui/PortionRow";
+import { ProgressSteps } from "../ui/ProgressSteps";
+import { SlipBar } from "../ui/SlipBar";
+import { amountsToSplit } from "../ui/split";
 import { Rise } from "../ui/Rise";
 import { Screen } from "../ui/Screen";
 import { Sheet } from "../ui/Sheet";
@@ -166,10 +172,174 @@ function DetailsSheet({ p, visible, onClose }: { p: Portionly; visible: boolean;
   );
 }
 
+const STATUS_TEXT: Record<SentLink["status"], string> = {
+  waiting: "Waiting to be collected",
+  closed: "Collected or taken back",
+  unfunded: "Never set up",
+  unknown: "Checking",
+};
+
+function LinksSent({ p }: { p: Portionly }) {
+  if (p.sentLinks.length === 0) return null;
+  const taking = p.busy === BUSY_TAKE_BACK;
+  return (
+    <Surface>
+      <T variant="h2">Links you sent</T>
+      {p.sentLinks.map((link) => {
+        const total = BigInt(link.total);
+        return (
+          <View key={link.key}>
+            <Divider />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              <View style={{ flex: 1 }}>
+                <T variant="strong">{formatUsd(total)}</T>
+                <T variant="small">{new Date(link.createdAt).toDateString()}</T>
+                <T variant="small" color={link.status === "waiting" ? colors.accent : colors.muted}>{STATUS_TEXT[link.status]}</T>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <LocalLine micro={total} code={link.cur} rates={p.rates} align="right" />
+              </View>
+            </View>
+            {link.status === "waiting" && (
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                <Button small variant="secondary" label="Share again" disabled={p.busy !== null} onPress={() => void p.shareSentLink(link, formatUsd(total))} style={{ flex: 1 }} />
+                <Button small variant="secondary" label="Take it back" loading={taking} disabled={p.busy !== null} onPress={() => void (p.wallets ? p.takeBack(link) : p.connect("unlock"))} style={{ flex: 1 }} />
+              </View>
+            )}
+            {(link.status === "closed" || link.status === "unfunded") && (
+              <View style={{ flexDirection: "row", marginTop: 6 }}>
+                <Button small variant="ghost" label="Remove from list" disabled={p.busy !== null} onPress={() => void p.removeSentLink(link)} />
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </Surface>
+  );
+}
+
+function ClaimSheet({ p, visible, initialText, onClose }: { p: Portionly; visible: boolean; initialText: string; onClose: () => void }) {
+  const [text, setText] = useState("");
+  const [check, setCheck] = useState<ClaimCheck | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [landed, setLanded] = useState<bigint | null>(null);
+  const collecting = p.busy === BUSY_COLLECT;
+
+  async function run(value: string): Promise<void> {
+    setChecking(true);
+    setCheck(await p.checkClaim(value));
+    setChecking(false);
+  }
+
+  useEffect(() => {
+    if (!visible) return;
+    setLanded(null);
+    setCheck(null);
+    setText(initialText);
+    p.setError(null);
+    if (initialText) void run(initialText);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function paste(): Promise<void> {
+    const value = await Clipboard.getStringAsync();
+    setText(value);
+    await run(value);
+  }
+
+  function edit(value: string): void {
+    setText(value);
+    setCheck(null);
+    p.setError(null);
+    // A whole link is checked as soon as it is pasted or typed in.
+    if (/[0-9a-fA-F]{64}/.test(value)) void run(value);
+  }
+
+  const progress = p.progress;
+  const step = progress ? (progress.state === "confirmed" ? progress.index + 1 : progress.index) : 0;
+
+  return (
+    <Sheet visible={visible} onClose={collecting ? () => undefined : onClose} label="Collect a money link">
+      {landed !== null ? (
+        <>
+          <View style={{ alignItems: "center", gap: 12 }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}>
+              <Tick size={40} />
+            </View>
+            <T variant="h2">It has landed</T>
+            <T variant="body" style={{ textAlign: "center" }}>{formatUsd(landed)} is now in your account.</T>
+          </View>
+          <Button label="Done" onPress={onClose} />
+        </>
+      ) : collecting ? (
+        <>
+          <T variant="h2">Collecting your money</T>
+          <ProgressSteps steps={["Collecting the money", "Passing on the fee that is left"]} current={Math.min(step, 1)} finished={false} />
+          <T variant="small">{progress?.state === "pending" ? "Waiting for the network" : "This takes a few seconds. It needs no fingerprint."}</T>
+        </>
+      ) : (
+        <>
+          <T variant="h2">I have a money link</T>
+          <T variant="small">Paste the link someone sent you. Nothing moves until you tap collect.</T>
+          <Field
+            label="Paste the money link"
+            autoCapitalize="none"
+            autoCorrect={false}
+            value={text}
+            onChangeText={edit}
+            right={<Button small variant="ghost" label="Paste" disabled={p.busy !== null} onPress={() => void paste()} />}
+          />
+          {text.trim() !== "" && check === null && !checking && <Button variant="secondary" label="Check this link" onPress={() => void run(text)} />}
+          {checking && <T variant="small">Looking for your money</T>}
+          {check && !check.ok && <Notice tone="error" raw text={check.message} />}
+          {check && check.ok && (
+            <>
+              <View>
+                <T variant="label">Waiting for you</T>
+                <Money value={Number(check.total) / 1_000_000} variant="display" style={{ fontSize: 44, lineHeight: 50 }} />
+                <LocalLine micro={check.total} code={check.currency} rates={p.rates} />
+              </View>
+              <SlipBar
+                split={amountsToSplit({ home: check.payment.nowAmount, save: check.payment.growAmount, stocks: check.payment.investAmount }, check.total)}
+                compact
+              />
+              <PortionRows
+                nowAmount={check.payment.nowAmount}
+                growAmount={check.payment.growAmount}
+                investAmount={check.payment.investAmount}
+                savingsNote={check.payment.lockDays > 0 ? `Locked for ${lockPhrase(check.payment.lockDays)} from the day you collect` : "Open any time"}
+                stockNote="Bought at the live price when you collect"
+                code={check.currency}
+                rates={p.rates}
+              />
+              {p.error && <Notice tone="error" text={p.error} />}
+              {p.wallets ? (
+                <Button
+                  label="Collect to my account"
+                  disabled={p.busy !== null}
+                  onPress={() =>
+                    void p.collect(check.key).then((done) => {
+                      if (done) setLanded(check.total);
+                    })
+                  }
+                />
+              ) : (
+                <Button label="Unlock with your fingerprint" loading={p.busy !== null} onPress={() => void p.connect("unlock")} />
+              )}
+              <T variant="small">Your money goes to your own account. You pay no fee.</T>
+            </>
+          )}
+          {!(check && check.ok) && p.error && <Notice tone="error" text={p.error} />}
+        </>
+      )}
+    </Sheet>
+  );
+}
+
 export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
   const [selected, setSelected] = useState<Person | null>(null);
   const [adding, setAdding] = useState(false);
   const [details, setDetails] = useState(false);
+  const [claimText, setClaimText] = useState<string | null>(null);
   const ready = p.shownBalances ? Number(p.shownBalances.ausd) : null;
 
   return (
@@ -183,7 +353,19 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
         </View>
       </Rise>
 
-      {p.error && <Notice tone="error" text={p.error} />}
+      {p.error && claimText === null && <Notice tone="error" text={p.error} />}
+
+      {p.clipboardClaim && claimText === null && (
+        <Notice
+          text={`You have a money link on your clipboard. Collect ${formatUsd(p.clipboardClaim.total)}?`}
+          action={
+            <ButtonRow>
+              <Button small label="Collect" onPress={() => setClaimText(p.clipboardClaim?.text ?? "")} style={{ flex: 1 }} />
+              <Button small variant="ghost" label="Not now" onPress={p.dismissClipboardClaim} style={{ flex: 1 }} />
+            </ButtonRow>
+          }
+        />
+      )}
 
       <Rise index={1}>
         <ButtonRow>
@@ -193,6 +375,23 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
       </Rise>
 
       <Rise index={2}>
+        <Surface>
+          <RowButton label="I have a money link" onPress={() => { p.setError(null); setClaimText(""); }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <T variant="strong">I have a money link</T>
+              <T variant="small" color={colors.accent}>Collect</T>
+            </View>
+          </RowButton>
+        </Surface>
+      </Rise>
+
+      {p.sentLinks.length > 0 && (
+        <Rise index={3}>
+          <LinksSent p={p} />
+        </Rise>
+      )}
+
+      <Rise index={4}>
         <Surface>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
             <T variant="h2">People</T>
@@ -246,6 +445,7 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
         </Surface>
       </Rise>
 
+      <ClaimSheet p={p} visible={claimText !== null} initialText={claimText ?? ""} onClose={() => setClaimText(null)} />
       <PersonSheet p={p} person={selected} onClose={() => setSelected(null)} go={go} />
       <AddPersonSheet p={p} visible={adding} onClose={() => setAdding(false)} />
       <DetailsSheet p={p} visible={details} onClose={() => setDetails(false)} />

@@ -1,10 +1,12 @@
 import * as Clipboard from "expo-clipboard";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Animated, Linking, TextInput, View } from "react-native";
 import { formatUnits, parseUnits } from "viem";
 import type { Rates } from "../currency";
 import { LOCK_DAYS } from "../portionlyPlan";
-import { BUSY_SENDING, type Portionly } from "../usePortionly";
+import QRCode from "react-native-qrcode-svg";
+import { lockPhrase } from "../linkShare";
+import { BUSY_LINK, BUSY_SENDING, type Portionly } from "../usePortionly";
 import { Button, ButtonRow } from "../ui/Button";
 import { Chip } from "../ui/Chip";
 import { Field } from "../ui/Field";
@@ -14,6 +16,7 @@ import { LockBanner } from "../ui/LockBanner";
 import { Money } from "../ui/Money";
 import { Notice } from "../ui/Notice";
 import { Pearls } from "../ui/Pearls";
+import { PortionRows } from "../ui/PortionRow";
 import { ProgressSteps } from "../ui/ProgressSteps";
 import { Rise } from "../ui/Rise";
 import { Screen } from "../ui/Screen";
@@ -72,11 +75,22 @@ function WhoSection({ p }: { p: Portionly }) {
       <T variant="h2">Who is it for?</T>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
         {p.people.map((person) => (
-          <Chip key={person.index} label={person.name} active={p.activeIndex === person.index} onPress={() => p.selectAccount(person.index, person.recipient)} />
+          <Chip key={person.index} label={person.name} active={!p.sendByLink && p.activeIndex === person.index} onPress={() => { p.setSendByLink(false); p.selectAccount(person.index, person.recipient); }} />
         ))}
-        <Chip label="Someone new" active={p.activeIndex === 0} onPress={() => p.selectAccount(0, "")} />
+        <Chip label="Someone new" active={!p.sendByLink && p.activeIndex === 0} onPress={() => { p.setSendByLink(false); p.selectAccount(0, ""); }} />
+        <Chip label="Send by link" active={p.sendByLink} onPress={() => { p.selectAccount(0, ""); p.setSendByLink(true); }} />
       </View>
-      {p.activePerson ? (
+      {p.sendByLink ? (
+        <View style={{ marginTop: 14, gap: 14 }}>
+          <T variant="small">For someone who has no account yet. They open the link and collect with a fingerprint.</T>
+          {p.rates && (
+            <View style={{ gap: 8 }}>
+              <T variant="label">Show amounts in</T>
+              <CurrencyPicker label="Show amounts in" value={p.oneOffCurrency} onChange={p.setOneOffCurrency} />
+            </View>
+          )}
+        </View>
+      ) : p.activePerson ? (
         <T variant="small" style={{ marginTop: 14 }}>
           Paying from the wallet that is only for {p.activePerson.name}.
         </T>
@@ -287,6 +301,86 @@ function ReviewView({ p }: { p: Portionly }) {
   );
 }
 
+const LINK_STEPS = ["Allowing the amount", "Setting the money aside", "Giving the link its fee"] as const;
+
+function LinkReviewView({ p }: { p: Portionly }) {
+  const review = p.linkReview!;
+  const split = amountsToSplit({ home: review.nowAmount, save: review.growAmount, stocks: review.investAmount }, review.total);
+  return (
+    <>
+      <Rise>
+        <T variant="title">Check your money link</T>
+      </Rise>
+      <Rise index={1}>
+        <Surface>
+          <T variant="label">You are putting aside</T>
+          <Money value={dollars(review.total)} variant="display" style={{ fontSize: 48, lineHeight: 54 }} />
+          <LocalLine micro={review.total} code={p.sendCurrency} rates={p.rates} />
+          <View style={{ marginTop: 14 }}>
+            <SlipBar split={split} compact />
+          </View>
+          <Divider />
+          <PortionRows
+            nowAmount={review.nowAmount}
+            growAmount={review.growAmount}
+            investAmount={review.investAmount}
+            savingsNote={review.lockDays > 0 ? `Locked for ${lockPhrase(review.lockDays)} from the day they collect` : "Open any time"}
+            stockNote="Apple, Nvidia, Amazon and more"
+            code={p.sendCurrency}
+            rates={p.rates}
+          />
+          <Divider />
+          <View style={{ gap: 8 }}>
+            {review.investAmount > 0n && <T variant="small">The stock part is bought at the live price when they collect.</T>}
+            <T variant="small">The link carries 0.3 MON so they pay no fee. What is left goes to them.</T>
+            <T variant="small">Three fingerprint checks.</T>
+          </View>
+        </Surface>
+      </Rise>
+      {p.error && <Notice tone="error" text={p.error} />}
+      <Rise index={2}>
+        {p.wallet ? (
+          <Button label="Confirm and make the link" disabled={p.busy !== null} onPress={() => void p.executeLink()} />
+        ) : (
+          <Button label="Unlock with your fingerprint" loading={p.busy !== null} onPress={() => void p.connect("unlock")} />
+        )}
+      </Rise>
+      <Rise index={3}>
+        <Button variant="secondary" label="Go back" disabled={p.busy !== null} onPress={() => p.setReview(null)} />
+      </Rise>
+    </>
+  );
+}
+
+function LinkSendingView({ p }: { p: Portionly }) {
+  const progress = p.progress;
+  const current = progress ? (progress.state === "confirmed" ? progress.index + 1 : progress.index) : 0;
+  const caption = !progress
+    ? "Getting ready"
+    : progress.state === "signing"
+      ? "Waiting for your fingerprint"
+      : progress.state === "pending"
+        ? "Waiting for the network"
+        : current >= LINK_STEPS.length
+          ? "Checking that everything is in place"
+          : "Done, on to the next step";
+  return (
+    <>
+      <Rise>
+        <T variant="title">Making your link</T>
+      </Rise>
+      <Rise index={1}>
+        <Surface>
+          <ProgressSteps steps={LINK_STEPS} current={Math.min(current, LINK_STEPS.length - 1)} finished={false} />
+          <Divider />
+          <T variant="small">{caption}</T>
+        </Surface>
+      </Rise>
+      {p.error && <Notice tone="error" text={p.error} />}
+    </>
+  );
+}
+
 function SendingView({ p }: { p: Portionly }) {
   const progress = p.progress;
   const current = progress ? (progress.state === "confirmed" ? progress.index + 1 : progress.index) : 0;
@@ -320,13 +414,19 @@ export function Send({ p }: { p: Portionly }) {
   const total = parseTotal(p.totalInput);
   const locked = !p.wallet;
   const sending = p.busy === BUSY_SENDING;
+  const linkSending = p.busy === BUSY_LINK;
+  const linkReview = p.sendByLink && p.linkReview !== null;
   const split = p.mode === "grow" ? toSplit(p.allocation) : { home: 100, save: 0, stocks: 0 };
-  const canReview = total > 0n && p.recipient.trim() !== "" && p.allocationTotal === 100 && p.busy === null;
+  const canReview = total > 0n && (p.sendByLink || p.recipient.trim() !== "") && p.allocationTotal === 100 && p.busy === null;
 
   return (
-    <Screen resetKey={p.review ? "review" : p.busy === BUSY_SENDING ? "sending" : "form"}>
+    <Screen resetKey={p.review || linkReview ? "review" : p.busy === BUSY_SENDING || linkSending ? "sending" : "form"}>
       <LockBanner p={p} />
-      {sending ? (
+      {linkSending ? (
+        <LinkSendingView p={p} />
+      ) : linkReview ? (
+        <LinkReviewView p={p} />
+      ) : sending ? (
         <SendingView p={p} />
       ) : p.review ? (
         <ReviewView p={p} />
@@ -343,10 +443,15 @@ export function Send({ p }: { p: Portionly }) {
             {locked && p.address ? (
               <Button label="Unlock with your fingerprint" loading={p.busy !== null} onPress={() => void p.connect("unlock")} />
             ) : (
-              <Button label="Review" loading={p.busy === "Getting the live price"} disabled={!canReview} onPress={() => void p.makeReview()} />
+              <Button
+                label="Review"
+                loading={p.busy === "Getting the live price" || p.busy === "Getting ready"}
+                disabled={!canReview}
+                onPress={() => void (p.sendByLink ? p.makeLinkReview() : p.makeReview())}
+              />
             )}
           </Rise>
-          {split.stocks > 0 && <T variant="small" style={{ textAlign: "center" }}>You will see the live price before anything is sent.</T>}
+          {split.stocks > 0 && !p.sendByLink && <T variant="small" style={{ textAlign: "center" }}>You will see the live price before anything is sent.</T>}
         </>
       )}
     </Screen>
@@ -422,6 +527,76 @@ export function SendSuccess({ p, onDone }: { p: Portionly; onDone: () => void })
             <Button variant="secondary" label="View receipt" disabled={!executeHash} onPress={() => void Linking.openURL(`https://monadscan.com/tx/${executeHash}`)} style={{ flex: 1 }} />
             <Button label="Done" onPress={onDone} style={{ flex: 1 }} />
           </ButtonRow>
+        </Rise>
+      </Screen>
+    </View>
+  );
+}
+
+/** Full screen moment after a money link was made. */
+export function LinkSuccess({ p, onDone }: { p: Portionly; onDone: () => void }) {
+  const result = p.linkResult;
+  const pop = useRef(new Animated.Value(0)).current;
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    Animated.spring(pop, { toValue: 1, speed: 8, bounciness: 16, delay: 200, useNativeDriver: true }).start();
+  }, [pop]);
+  if (!result) return null;
+  const split = amountsToSplit({ home: result.nowAmount, save: result.growAmount, stocks: result.investAmount }, result.total);
+
+  return (
+    <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 40, backgroundColor: colors.sky }}>
+      <Screen tabBar={false} paddingTop={56}>
+        <View style={{ alignItems: "center", gap: 14 }}>
+          <Animated.View
+            style={[
+              { width: 96, height: 96, borderRadius: 48, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", transform: [{ scale: pop }] },
+              surfaceShadow,
+              { shadowColor: colors.accent },
+            ]}
+          >
+            <Tick size={52} />
+          </Animated.View>
+          <Rise index={2}>
+            <T variant="title" style={{ textAlign: "center" }}>{formatUsd(result.total)} is ready to share</T>
+          </Rise>
+          {showsLocal(result.currency, p.rates) && (
+            <Rise index={3}>
+              <LocalLine micro={result.total} code={result.currency} rates={p.rates} align="center" />
+            </Rise>
+          )}
+        </View>
+        <Rise index={4}>
+          <Surface style={{ alignItems: "center", gap: 16 }}>
+            <View style={{ alignSelf: "stretch" }}>
+              <SlipBar split={split} compact />
+            </View>
+            <View accessibilityLabel="QR code for your money link" accessibilityRole="image" style={{ padding: 8 }}>
+              <QRCode value={result.url} size={200} color={colors.ink} backgroundColor="#ffffff" />
+            </View>
+          </Surface>
+        </Rise>
+        <Rise index={5}>
+          <View style={{ gap: 12 }}>
+            <Button label="Share the link" onPress={() => void p.shareNewLink(formatUsd(result.total))} />
+            <Button
+              variant="secondary"
+              label={copied ? "Copied" : "Copy link"}
+              onPress={() => {
+                void Clipboard.setStringAsync(result.url);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1800);
+              }}
+            />
+          </View>
+        </Rise>
+        <Rise index={6}>
+          <T variant="small" style={{ textAlign: "center" }}>
+            This link works like cash. Only share it with the person it is for. You can take it back any time before they collect.
+          </T>
+        </Rise>
+        <Rise index={7}>
+          <Button variant="ghost" label="Done" onPress={onDone} />
         </Rise>
       </Screen>
     </View>

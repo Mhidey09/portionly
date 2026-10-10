@@ -132,6 +132,17 @@ type Props = {
   onContinue?: () => void;
 };
 
+/** A quiet line for someone who was sent a money link: no new flow, just what to do. */
+function MoneyLinkHint() {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Button small variant="ghost" label="I was sent a money link" onPress={() => setOpen(!open)} />
+      {open && <T variant="small" style={{ textAlign: "center" }}>Create your account first, then tap I have a money link.</T>}
+    </View>
+  );
+}
+
 /** Three swipeable pages. The last one creates or opens the account. */
 export function Onboarding({ lastPageOnly, busy, error, onCreate, onSignIn, onContinue }: Props) {
   const { width } = useWindowDimensions();
@@ -221,6 +232,7 @@ export function Onboarding({ lastPageOnly, busy, error, onCreate, onSignIn, onCo
                   <Button variant="secondary" label="I already have an account" onPress={onSignIn} disabled={busy !== null} />
                 </>
               )}
+              {!onContinue && <MoneyLinkHint />}
             </View>
           </Rise>
         ) : (

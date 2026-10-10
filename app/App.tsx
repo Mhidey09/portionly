@@ -6,7 +6,7 @@ import { Home } from "./src/screens/Home";
 import { Money } from "./src/screens/Money";
 import { Onboarding } from "./src/screens/Onboarding";
 import { Receive } from "./src/screens/Receive";
-import { Send, SendSuccess } from "./src/screens/Send";
+import { LinkSuccess, Send, SendSuccess } from "./src/screens/Send";
 import { loadOnboarded, saveOnboarded } from "./src/storage";
 import { Splash } from "./src/ui/Splash";
 import { TabBar, type TabKey } from "./src/ui/TabBar";
@@ -63,12 +63,17 @@ function Root() {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (p.linkResult) {
+        p.setLinkResult(null);
+        go("home");
+        return true;
+      }
       if (p.result) {
         p.setResult(null);
         go("home");
         return true;
       }
-      if (p.review) {
+      if (p.review || p.linkReview) {
         p.setReview(null);
         return true;
       }
@@ -79,7 +84,7 @@ function Root() {
       return false;
     });
     return () => sub.remove();
-  }, [tab, p.result, p.review, go]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, p.result, p.review, p.linkResult, p.linkReview, go]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loaded = p.ready && onboarded !== null;
   let body = <View style={{ flex: 1, backgroundColor: colors.sky }} />;
@@ -101,7 +106,17 @@ function Root() {
         {tab === "send" && <Send p={p} />}
         {tab === "receive" && <Receive p={p} />}
         {tab === "money" && <Money p={p} />}
-        {!keyboard && !p.result && <TabBar active={tab} onChange={go} />}
+        {!keyboard && !p.result && !p.linkResult && <TabBar active={tab} onChange={go} />}
+        {p.linkResult && (
+          <LinkSuccess
+            p={p}
+            onDone={() => {
+              p.setLinkResult(null);
+              p.setTotalInput("");
+              go("home");
+            }}
+          />
+        )}
         {p.result && (
           <SendSuccess
             p={p}

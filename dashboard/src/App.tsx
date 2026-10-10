@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getAddress, isAddress } from "viem";
+import Claim from "./Claim";
 import Landing from "./Landing";
 import Proof from "./Proof";
 import Recipient from "./Recipient";
@@ -21,6 +22,8 @@ function initialTheme(): Theme {
 function route() {
   const path = window.location.pathname;
   if (/^\/proof\/?$/i.test(path)) return { page: "proof" as const };
+  // The key is in the part after #, which is read inside the Claim page and never leaves the browser.
+  if (/^\/claim\/?$/i.test(path)) return { page: "claim" as const };
   const pay = parsePayPath(path);
   if (pay) return "address" in pay ? { page: "recipient" as const, address: pay.address } : { page: "bad-link" as const, error: pay.error };
   // Older links used ?recipient=0x…; keep them working.
@@ -65,6 +68,7 @@ export default function App() {
       <main>
         {current.page === "landing" && <Landing />}
         {current.page === "proof" && <Proof />}
+        {current.page === "claim" && <Claim />}
         {current.page === "recipient" && <Recipient address={current.address} />}
         {current.page === "bad-link" && (
           <div className="recipient">

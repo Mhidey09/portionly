@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/pay/:path*", "destination": "/index.html" },
-    { "source": "/proof", "destination": "/index.html" }
+    { "source": "/proof", "destination": "/index.html" },
+    { "source": "/claim", "destination": "/index.html" }
   ]
 }

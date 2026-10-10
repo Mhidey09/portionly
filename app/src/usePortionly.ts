@@ -1,7 +1,14 @@
 import * as Clipboard from "expo-clipboard";
-import { useEffect, useMemo, useState } from "react";
-import { Share } from "react-native";
-import { formatUnits, isAddress, parseUnits, type Address, type Hash } from "viem";
+import * as Crypto from "expo-crypto";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Share } from "react-native";
+import { formatUnits, isAddress, parseUnits, type Address, type Hash, type Hex } from "viem";
+import type { PlannedCall } from "./aqqqProofPlan";
+import { buildCreateLinkCalls, linkFromBytes, portionAmounts } from "./linkPay";
+import { claimLink, cancelLink, readLinkPayment, sweepLinkFee, type LinkPayment } from "./linkNetwork";
+import { addressOfKey, type StoredLink } from "./linkRecords";
+import { currencyOfLink, linkStatus, parseMoneyLink, parseSendInputs, shareMessage, shareUrl, type SentLink } from "./linkShare";
+import { forgetLink, loadLinks, rememberLink } from "./linkStore";
 import { gasTopUpFor } from "./funding";
 import { addPerson, setPersonCurrency, type Person } from "./people";
 import { useRates } from "./useRates";
@@ -55,6 +62,23 @@ export type SellReview = { amountIn: bigint; quoted: bigint; minimumOut: bigint;
 export const DEFAULT_ALLOCATION: Allocation = { now: "50", grow: "30", invest: "20" };
 /** The busy label while a payment is going out, so screens can show the progress steps. */
 export const BUSY_SENDING = "Sending your payment";
+export const BUSY_LINK = "Making your money link";
+export const BUSY_COLLECT = "Collecting your money";
+export const BUSY_TAKE_BACK = "Taking your money back";
+
+export type LinkReview = {
+  key: Hex;
+  address: Address;
+  total: bigint;
+  nowAmount: bigint;
+  growAmount: bigint;
+  investAmount: bigint;
+  lockDays: number;
+  calls: PlannedCall[];
+};
+export type LinkResult = { url: string; key: Hex; total: bigint; nowAmount: bigint; growAmount: bigint; investAmount: bigint; lockDays: number; currency?: string };
+export type ClaimCheck = { ok: true; key: Hex; payment: LinkPayment; total: bigint; currency?: string } | { ok: false; message: string };
+export type ClipboardClaim = { key: Hex; text: string; total: bigint };
 
 /** All state and actions for the app. The handlers below are the ones that lived in App.tsx. */
 export function usePortionly() {
@@ -82,13 +106,21 @@ export function usePortionly() {
   const [withdrawals, setWithdrawals] = useState<PendingWithdrawal[]>([]);
   const [moneyNote, setMoneyNote] = useState<string | null>(null);
   const [allocation, setAllocation] = useState<Allocation>(DEFAULT_ALLOCATION);
-  const [review, setReview] = useState<Review | null>(null);
+  const [review, setReviewState] = useState<Review | null>(null);
   const [progress, setProgress] = useState<ExecutionUpdate | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [busy, setBusy] = useState<string | null>("Loading your account");
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Send to a link: no recipient address. The money waits under a one time key until someone collects it.
+  const [sendByLink, setSendByLinkState] = useState(false);
+  const [linkReview, setLinkReview] = useState<LinkReview | null>(null);
+  const [linkResult, setLinkResult] = useState<LinkResult | null>(null);
+  const [sentLinks, setSentLinks] = useState<SentLink[]>([]);
+  const [clipboardClaim, setClipboardClaim] = useState<ClipboardClaim | null>(null);
+  const storedLinks = useRef<StoredLink[]>([]);
+  const lastPeeked = useRef<string | null>(null);
 
   useEffect(() => {
     Promise.all([loadAccount(), loadPeople()])
@@ -104,6 +136,12 @@ export function usePortionly() {
   }, []);
 
   useEffect(() => () => endWallets(wallets), [wallets]);
+
+  /** Clearing the review (any edit does) also clears a link review. */
+  function setReview(value: Review | null): void {
+    setReviewState(value);
+    if (value === null) setLinkReview(null);
+  }
 
   const activePerson = people.find((person) => person.index === activeIndex) ?? null;
   const wallet: Wallet | null = wallets?.byIndex.get(activeIndex) ?? null;
@@ -267,6 +305,7 @@ export function usePortionly() {
       await refresh();
       if (wallets) await refreshPeople();
       await loadLocks();
+      await refreshSentLinks();
     } catch (caught) {
       setError(describeError(caught));
     } finally {
@@ -483,6 +522,241 @@ export function usePortionly() {
     }
   }
 
+  // ---- Send to a link ----
+
+  function setSendByLink(on: boolean): void {
+    setSendByLinkState(on);
+    setLinkReview(null);
+    setError(null);
+  }
+
+  /** Every saved link with what the chain says about it. A read that fails shows as unknown, never as closed. */
+  async function refreshSentLinks(list: StoredLink[] = storedLinks.current): Promise<void> {
+    const merged = await Promise.all(
+      list.map(async (entry): Promise<SentLink> => {
+        try {
+          const payment = await readLinkPayment(entry.address);
+          return {
+            ...entry,
+            status: linkStatus(payment),
+            ...(payment ? { lockDays: payment.lockDays, nowAmount: payment.nowAmount, growAmount: payment.growAmount, investAmount: payment.investAmount } : {}),
+          };
+        } catch {
+          return { ...entry, status: linkStatus("error") };
+        }
+      }),
+    );
+    setSentLinks(merged);
+  }
+
+  useEffect(() => {
+    loadLinks()
+      .then((list) => {
+        storedLinks.current = list;
+        return refreshSentLinks(list);
+      })
+      .catch(() => undefined);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function makeLinkReview(): Promise<void> {
+    setBusy("Getting ready");
+    setError(null);
+    setLinkReview(null);
+    setLinkResult(null);
+    try {
+      if (!wallets) throw new Error("Unlock your account first");
+      const main = wallets.main.address;
+      const { total, percentages } = parseSendInputs(totalInput, plannedAllocation);
+      const current = await refresh(main);
+      if (!current) throw new Error("Balances are unavailable");
+      const portions = portionAmounts(total, percentages[0] * 100, percentages[1] * 100, percentages[2] * 100);
+      const days = mode === "grow" ? lockDays : 0;
+      const fresh = linkFromBytes(await Crypto.getRandomBytesAsync(32));
+      // No stock quote here: the price is taken when the person collects.
+      const calls = buildCreateLinkCalls({ account: main, link: fresh.address, portions, lockDays: days, ausdBalance: current.ausd, monBalance: current.mon });
+      setLinkReview({ key: fresh.key, address: fresh.address, total, ...portions, lockDays: days, calls });
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function executeLink(): Promise<void> {
+    if (!wallets || !linkReview) return;
+    const reviewed = linkReview;
+    setBusy(BUSY_LINK);
+    setError(null);
+    setProgress(null);
+    try {
+      // The key is saved first, so a crash can never leave money under a key this phone forgot.
+      const entry: StoredLink = { key: reviewed.key, address: reviewed.address, createdAt: Date.now(), total: reviewed.total.toString(), ...(sendCurrency ? { cur: sendCurrency } : {}) };
+      storedLinks.current = await rememberLink(entry);
+      await sendCalls(wallets.main, reviewed.calls, setProgress);
+      const payment = await readLinkPayment(reviewed.address);
+      if (
+        !payment ||
+        !payment.open ||
+        payment.nowAmount !== reviewed.nowAmount ||
+        payment.growAmount !== reviewed.growAmount ||
+        payment.investAmount !== reviewed.investAmount ||
+        payment.lockDays !== reviewed.lockDays
+      ) {
+        throw new Error("Post-check failed: the payment does not show as set aside");
+      }
+      setLinkResult({
+        url: shareUrl(reviewed.key, sendCurrency),
+        key: reviewed.key,
+        total: reviewed.total,
+        nowAmount: reviewed.nowAmount,
+        growAmount: reviewed.growAmount,
+        investAmount: reviewed.investAmount,
+        lockDays: reviewed.lockDays,
+        currency: sendCurrency,
+      });
+      setLinkReview(null);
+      await refresh(wallets.main.address).catch(() => undefined);
+      await refreshSentLinks();
+    } catch (caught) {
+      // The key stays saved. If the money was set aside, the sender can take it back from Home.
+      let note = "";
+      try {
+        const payment = await readLinkPayment(reviewed.address);
+        if (payment?.open) note = " The money was set aside, but the link was not finished. Find it under Links you sent on Home and take it back.";
+      } catch {
+        // Offline: the saved link shows its real state on the next refresh.
+      }
+      setError(describeError(caught) + note);
+      await refresh(wallets.main.address).catch(() => undefined);
+      await refreshSentLinks().catch(() => undefined);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function takeBack(link: SentLink): Promise<void> {
+    if (!wallets) {
+      setError("Unlock your account first");
+      return;
+    }
+    setBusy(BUSY_TAKE_BACK);
+    setError(null);
+    setProgress(null);
+    try {
+      await cancelLink(wallets.main, link.address, setProgress);
+      // The link no longer needs its fee balance; bring that home too. The refund above stands either way.
+      await sweepLinkFee(link.key, wallets.main.address).catch(() => undefined);
+      setMoneyNote("The money is back in your account.");
+      await refresh(wallets.main.address).catch(() => undefined);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      await refreshSentLinks().catch(() => undefined);
+      setBusy(null);
+    }
+  }
+
+  /** Lets the sender tidy the list once a link is no longer waiting. Never offered for an open payment. */
+  async function removeSentLink(link: SentLink): Promise<void> {
+    if (link.status === "waiting" || link.status === "unknown") return;
+    try {
+      // Once this phone forgets the key, any fee balance left under it is out of reach, so collect it first.
+      if (wallets) await sweepLinkFee(link.key, wallets.main.address).catch(() => undefined);
+      storedLinks.current = await forgetLink(link.key);
+      await refreshSentLinks();
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
+  async function shareSentLink(link: StoredLink, amount: string): Promise<void> {
+    try {
+      await Share.share({ message: `${shareMessage(amount)} ${shareUrl(link.key, link.cur)}` });
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
+  async function shareNewLink(amount: string): Promise<void> {
+    if (!linkResult) return;
+    try {
+      await Share.share({ message: `${shareMessage(amount)} ${linkResult.url}` });
+    } catch (caught) {
+      setError(describeError(caught));
+    }
+  }
+
+  // ---- Collecting a money link ----
+
+  /** What is waiting under a pasted link, or a plain message saying why nothing is. */
+  async function checkClaim(text: string): Promise<ClaimCheck> {
+    let key: Hex;
+    try {
+      key = parseMoneyLink(text);
+    } catch {
+      return { ok: false, message: "That is not a Portionly money link. Paste the whole link you were sent." };
+    }
+    try {
+      const payment = await readLinkPayment(addressOfKey(key));
+      if (!payment) return { ok: false, message: "This money link was never set up. Ask the sender to send it again." };
+      if (!payment.open) return { ok: false, message: "This money link was already collected or taken back." };
+      return { ok: true, key, payment, total: payment.nowAmount + payment.growAmount + payment.investAmount, currency: currencyOfLink(text) };
+    } catch {
+      return { ok: false, message: "We could not reach the network. Check your connection and try again." };
+    }
+  }
+
+  async function collect(key: Hex): Promise<boolean> {
+    if (!wallets) {
+      setError("Unlock your account first");
+      return false;
+    }
+    setBusy(BUSY_COLLECT);
+    setError(null);
+    setProgress(null);
+    try {
+      await claimLink(key, wallets.main.address, setProgress);
+      setClipboardClaim((current) => (current?.key === key ? null : current));
+      await refresh(wallets.main.address).catch(() => undefined);
+      await loadLocks();
+      return true;
+    } catch (caught) {
+      setError(describeError(caught));
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Looks at the clipboard once per distinct value. Never collects on its own. */
+  async function peekClipboard(): Promise<void> {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (!text || text === lastPeeked.current || text.length > 2_000) return;
+      lastPeeked.current = text;
+      const key = parseMoneyLink(text);
+      // A link this phone made is the sender's own, so it is never offered back to them as something to collect.
+      if (storedLinks.current.some((entry) => entry.key === key)) return;
+      const payment = await readLinkPayment(addressOfKey(key));
+      if (payment?.open) setClipboardClaim({ key, text, total: payment.nowAmount + payment.growAmount + payment.investAmount });
+    } catch {
+      // Not a money link, or no network. Say nothing.
+    }
+  }
+
+  function dismissClipboardClaim(): void {
+    setClipboardClaim(null);
+  }
+
+  useEffect(() => {
+    if (!ready || !address) return;
+    void peekClipboard();
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void peekClipboard();
+    });
+    return () => sub.remove();
+  }, [ready, address]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return {
     // state
     wallets, wallet, address, myLink, ready, busy, error, refreshing,
@@ -491,12 +765,15 @@ export function usePortionly() {
     recipient, totalInput, mode, lockDays, allocation, plannedAllocation, allocationTotal,
     review, progress, result, newName, newRecipient, topUpInputs,
     rates: fx.rates, ratesStatus: fx.status, newCurrency, oneOffCurrency, sendCurrency,
+    sendByLink, linkReview, linkResult, sentLinks, clipboardClaim,
     // setters the screens use directly
     setRecipient, setTotalInput, setMode, setLockDays, setAllocation, setReview, setResult, setError,
     setNewName, setNewRecipient, setTopUpInputs, setMoneyNote, setNewCurrency, setOneOffCurrency,
     // actions
     connect, claim, withdrawSavings, collectWithdrawal, quoteSell, sellStocks, manualRefresh,
     selectAccount, normalizeTyped, pasteRecipient, shareLink, submitPerson, changePersonCurrency, topUp, makeReview, execute,
+    setSendByLink, setLinkResult, makeLinkReview, executeLink, takeBack, removeSentLink, shareSentLink, shareNewLink,
+    checkClaim, collect, dismissClipboardClaim,
   };
 }
 
