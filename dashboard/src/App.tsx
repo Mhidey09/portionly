@@ -12,9 +12,10 @@ function initialTheme(): Theme {
     const saved = localStorage.getItem("portionly.theme");
     if (saved === "light" || saved === "dark") return saved;
   } catch {
-    /* storage can be blocked; fall through to the system setting */
+    /* storage can be blocked; fall through to the default */
   }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  // The light sky look is the brand. Dark is a choice the visitor makes, never the phone's setting.
+  return "light";
 }
 
 function route() {
