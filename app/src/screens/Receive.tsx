@@ -14,6 +14,7 @@ import { colors } from "../ui/theme";
 
 export function Receive({ p }: { p: Portionly }) {
   const [copied, setCopied] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState(false);
   const link = p.myLink;
   return (
     <Screen>
@@ -47,6 +48,25 @@ export function Receive({ p }: { p: Portionly }) {
               <Button label="Share" style={{ flex: 1 }} onPress={() => void p.shareLink(link)} />
             </ButtonRow>
           </Rise>
+          {p.address && (
+            <Rise index={3}>
+              <Surface style={{ gap: 12 }}>
+                <T variant="strong">Add money from an exchange or another wallet</T>
+                <T variant="small">Send AUSD on the Monad network to this address. Sending any other coin or network can lose the money.</T>
+                <T variant="small" selectable color={colors.ink}>{p.address}</T>
+                <Button
+                  variant="secondary"
+                  small
+                  label={copiedAddress ? "Copied" : "Copy address"}
+                  onPress={() => {
+                    void Clipboard.setStringAsync(p.address ?? "");
+                    setCopiedAddress(true);
+                    setTimeout(() => setCopiedAddress(false), 1800);
+                  }}
+                />
+              </Surface>
+            </Rise>
+          )}
         </>
       ) : (
         <Notice text="Your pay link is not ready yet. Create or open your account first." />
