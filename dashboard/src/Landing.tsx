@@ -151,7 +151,7 @@ export default function Landing() {
           </svg>
           <ul>
             <li>Mum</li>
-            <li>Tunde</li>
+            <li>James</li>
             <li>School fees</li>
           </ul>
         </div>
