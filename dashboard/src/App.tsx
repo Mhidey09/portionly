@@ -1,186 +1,87 @@
-import { FormEvent, useEffect, useState } from "react";
-import type { Address } from "viem";
-import HistorySection from "./HistorySection";
-import { loadHistory, type HistoryState } from "./history";
-import { apkLink, parsePayPath } from "./payRoute";
-import { explorerAddress, parseRecipient, readRecipient, type RecipientSnapshot } from "./data";
+import { useEffect, useState } from "react";
+import { getAddress, isAddress } from "viem";
+import Landing from "./Landing";
+import Proof from "./Proof";
+import Recipient from "./Recipient";
+import { parsePayPath } from "./payRoute";
 
-function short(address: string) {
-  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+type Theme = "light" | "dark";
+
+function initialTheme(): Theme {
+  try {
+    const saved = localStorage.getItem("portionly.theme");
+    if (saved === "light" || saved === "dark") return saved;
+  } catch {
+    /* storage can be blocked; fall through to the system setting */
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function amount(value: string, max = 6) {
-  const [whole, fraction = ""] = value.split(".");
-  const trimmed = fraction.slice(0, max).replace(/0+$/, "");
-  return trimmed ? `${whole}.${trimmed}` : whole;
-}
-
-const payRoute = parsePayPath(window.location.pathname);
-const apkUrl = apkLink(import.meta.env.VITE_APK_URL);
-
-function initialAddress() {
-  if (payRoute && "address" in payRoute) return payRoute.address;
-  return new URLSearchParams(window.location.search).get("recipient") ?? "";
+function route() {
+  const path = window.location.pathname;
+  if (/^\/proof\/?$/i.test(path)) return { page: "proof" as const };
+  const pay = parsePayPath(path);
+  if (pay) return "address" in pay ? { page: "recipient" as const, address: pay.address } : { page: "bad-link" as const, error: pay.error };
+  // Older links used ?recipient=0x…; keep them working.
+  const legacy = new URLSearchParams(window.location.search).get("recipient");
+  if (legacy) {
+    return isAddress(legacy, { strict: false })
+      ? { page: "recipient" as const, address: getAddress(legacy.toLowerCase()) }
+      : { page: "bad-link" as const, error: "This link does not contain a valid address." };
+  }
+  return { page: "landing" as const };
 }
 
 export default function App() {
-  const [input, setInput] = useState(initialAddress);
-  const [snapshot, setSnapshot] = useState<RecipientSnapshot | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [error, setError] = useState("");
-  const [history, setHistory] = useState<HistoryState | "loading">("loading");
-
-  async function load(raw: string) {
-    setStatus("loading");
-    setError("");
-    try {
-      const recipient = parseRecipient(raw);
-      setHistory("loading");
-      const historyRequest = loadHistory(recipient);
-      const next = await readRecipient(recipient);
-      setSnapshot(next);
-      setStatus("ready");
-      void historyRequest.then(setHistory);
-      if (!payRoute) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("recipient", recipient);
-        window.history.replaceState({}, "", url);
-      }
-    } catch (cause) {
-      setSnapshot(null);
-      setError(cause instanceof Error ? cause.message : "Could not read Monad balances.");
-      setStatus("error");
-    }
-  }
+  const [theme, setTheme] = useState<Theme>(initialTheme);
+  const current = route();
 
   useEffect(() => {
-    if (input) void load(input);
-    // The URL value is loaded once on entry. Further reads are user initiated.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    void load(input);
-  }
-
-  const recipient = snapshot?.address;
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("portionly.theme", theme);
+    } catch {
+      /* not essential */
+    }
+  }, [theme]);
 
   return (
-    <main>
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="Portionly home">portionly</a>
-        <span className="network">Monad mainnet</span>
+    <>
+      <header className="nav">
+        <a className="brand" href="/" aria-label="Portionly home">
+          <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
+          portionly
+        </a>
+        <nav aria-label="Main">
+          <a href="/#received">I was sent money</a>
+          <a href="/proof">Proof</a>
+          <button className="theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+            {theme === "dark" ? "Light" : "Dark"}
+          </button>
+        </nav>
       </header>
 
-      {payRoute && (
-        <section className="pay-block" aria-labelledby="pay-title">
-          <h2 id="pay-title">Pay this person with Portionly</h2>
-          {"address" in payRoute ? (
-            <p className="pay-address" data-testid="pay-address">{payRoute.address}</p>
-          ) : (
-            <p className="form-error" role="alert">{payRoute.error}</p>
-          )}
-          {apkUrl && (
-            <p className="help">New to Portionly? <a href={apkUrl} rel="noreferrer">Get the Android app</a></p>
-          )}
-        </section>
-      )}
-
-      <section className="intro" aria-labelledby="page-title">
-        <p className="kicker">Recipient view</p>
-        <h1 id="page-title">See what arrived.</h1>
-        <p className="lede">Live balances from Monad, read directly from the chain.</p>
-
-        <form onSubmit={submit} noValidate>
-          <label htmlFor="recipient">Recipient address</label>
-          <div className="address-row">
-            <input
-              id="recipient"
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="0x..."
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              aria-describedby={error ? "address-error" : "address-help"}
-            />
-            <button type="submit" disabled={status === "loading"}>
-              {status === "loading" ? "Reading..." : "View balance"}
-            </button>
+      <main>
+        {current.page === "landing" && <Landing />}
+        {current.page === "proof" && <Proof />}
+        {current.page === "recipient" && <Recipient address={current.address} />}
+        {current.page === "bad-link" && (
+          <div className="recipient">
+            <h1>That link didn't work.</h1>
+            <p className="form-error" role="alert">{current.error}</p>
+            <a className="button line" href="/#received">Try pasting it here</a>
           </div>
-          {error ? <p id="address-error" className="form-error" role="alert">{error}</p> : <p id="address-help" className="help">A public address is safe to view. No wallet connection is required.</p>}
-        </form>
-      </section>
+        )}
+      </main>
 
-      {status === "loading" && (
-        <section className="balance-shell loading" aria-label="Loading live balances" aria-busy="true">
-          <div className="skeleton wide" />
-          <div className="skeleton" />
-          <div className="skeleton" />
-        </section>
-      )}
-
-      {status === "ready" && snapshot && (
-        <>
-          <section className="balance-shell" aria-labelledby="balance-title">
-            <div className="balance-heading">
-              <div>
-                <p className="section-label">Live balance</p>
-                <h2 id="balance-title">{short(snapshot.address)}</h2>
-              </div>
-              <button className="text-button" onClick={() => void load(snapshot.address)}>Refresh</button>
-            </div>
-
-            <div className="primary-balance">
-              <span>Available now</span>
-              <strong>{amount(snapshot.ausd, 6)} <small>AUSD</small></strong>
-              <p>Stablecoin balance held by this address.</p>
-            </div>
-
-            <div className="asset-grid">
-              <article>
-                <span>Invested</span>
-                <strong>{amount(snapshot.aqqq, 8)} <small>aQQQ</small></strong>
-                <p>Tokenized Nasdaq-100 tracker balance. This is not direct ownership of constituent shares.</p>
-              </article>
-              <article>
-                <span>Saving</span>
-                <strong>{amount(snapshot.earn, 6)} <small>earnAUSD</small></strong>
-                <p>
-                  Upshift vault shares. Yield is not guaranteed.{" "}
-                  {snapshot.earnValue !== null
-                    ? `Redemption value now: ${amount(snapshot.earnValue, 6)} AUSD.`
-                    : "Value shown at redemption."}
-                </p>
-              </article>
-              <article>
-                <span>Network gas</span>
-                <strong>{amount(snapshot.mon, 5)} <small>MON</small></strong>
-                <p>Used only to pay Monad transaction fees.</p>
-              </article>
-            </div>
-
-            <footer className="proof-row">
-              <span>Read at block {snapshot.blockNumber.toString()}</span>
-              <a href={explorerAddress(snapshot.address)} target="_blank" rel="noreferrer">Open explorer</a>
-            </footer>
-          </section>
-
-          <HistorySection state={history} />
-        </>
-      )}
-
-      {status === "idle" && (
-        <section className="empty-state">
-          <p>Paste a recipient address to read current AUSD, aQQQ, and MON balances.</p>
-        </section>
-      )}
-
-      <footer className="site-footer">
-        <span>Read-only. No custody. No signing.</span>
-        {recipient && <span>{short(recipient as Address)}</span>}
+      <footer className="foot">
+        <span>Portionly never holds your money. It moves straight between your accounts on Monad.</span>
+        <nav aria-label="Footer">
+          <a href="/">Home</a>
+          <a href="/#received">I was sent money</a>
+          <a href="/proof">Proof</a>
+        </nav>
       </footer>
-    </main>
+    </>
   );
 }

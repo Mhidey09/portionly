@@ -44,7 +44,7 @@ describe("history parsing (recorded fixtures)", () => {
   });
 
   it("formats helpers", () => {
-    expect(formatDate(1770000000)).toBe("2026-02-02");
+    expect(formatDate(1770000000)).toBe("2 Feb 2026");
     expect(explorerTx("0xabc")).toBe("https://monadscan.com/tx/0xabc");
     expect(trimAmount("1.230000")).toBe("1.23");
     expect(trimAmount("2.000000")).toBe("2");

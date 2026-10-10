@@ -102,7 +102,8 @@ export function buildHistory(plansPayload: unknown, positionsPayload: unknown): 
 }
 
 export function formatDate(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
+  // Fixed to UTC so the same payment shows the same day for sender and recipient.
+  return new Date(unixSeconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
 export function explorerTx(hash: string) {

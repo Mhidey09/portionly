@@ -1,55 +1,68 @@
 import { expect, test } from "@playwright/test";
 
-const recipient = "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a";
+const funded = "0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2";
 
-test("starts read-only and rejects malformed recipients", async ({ page }) => {
+test("landing explains the product and the slip responds to the mode", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("No wallet connection is required.")).toBeVisible();
-  await expect(page.getByText("Paste a recipient address")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Send money home.");
+  await expect(page.getByRole("tab", { name: "Send + grow" })).toHaveAttribute("aria-selected", "true");
+  const rows = page.locator(".slip-rows output");
+  await expect(rows).toHaveText(["$100.00", "$60.00", "$40.00"]);
 
-  await page.getByLabel("Recipient address").fill("not-an-address");
-  await page.getByRole("button", { name: "View balance" }).click();
-  await expect(page.getByRole("alert")).toHaveText("Enter a valid 0x recipient address.");
-});
+  await page.getByRole("tab", { name: "Send home" }).click();
+  await expect(rows).toHaveText(["$200.00", "$0.00", "$0.00"]);
 
-test("reads a real Monad address and exposes chain evidence", async ({ page }) => {
-  await page.goto(`/?recipient=${recipient}`);
-  await expect(page.getByText("Live balance", { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("heading", { name: "0x000000...a9012a" })).toBeVisible();
-  await expect(page.getByText(/^Read at block \d+$/)).toBeVisible();
-  await expect(page.getByText("AUSD", { exact: true })).toBeVisible();
-  await expect(page.getByText("aQQQ", { exact: true })).toBeVisible();
-  await expect(page.getByText("History isn’t connected.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open explorer" })).toHaveAttribute("href", `https://monadscan.com/address/${recipient}`);
-});
-
-test("says history is not connected when no indexer URL is configured", async ({ page }) => {
-  await page.goto(`/?recipient=${recipient}`);
-  await expect(page.getByRole("heading", { name: "History isn’t connected." })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/Balances above are live from the chain./)).toBeVisible();
-});
-
-test("shows a non-zero live earnAUSD balance for a real plan recipient", async ({ page }) => {
-  await page.goto("/?recipient=0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2");
-  await expect(page.getByText("Saving", { exact: true })).toBeVisible({ timeout: 30_000 });
-  const card = page.locator("article", { hasText: "Saving" });
-  await expect(card.locator("strong")).toContainText("earnAUSD");
-  await expect(card.locator("strong")).not.toHaveText(/^0 /);
-  await expect(card.getByText(/Redemption value now: [0-9.]+ AUSD/)).toBeVisible();
-});
-
-test("/pay/<address> shows who to pay and loads their balances", async ({ page }) => {
-  const payee = "0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2";
-  await page.goto(`/pay/${payee}`);
-  await expect(page.getByRole("heading", { name: "Pay this person with Portionly" })).toBeVisible();
-  await expect(page.getByTestId("pay-address")).toHaveText(payee);
-  await expect(page.getByText("Live balance", { exact: true })).toBeVisible({ timeout: 30_000 });
-  // No APK URL is configured in tests, so no download link is invented.
+  await page.getByLabel("Example amount in dollars").fill("80");
+  await expect(rows.first()).toHaveText("$80.00");
+  // No APK URL or indexer is configured in tests, so neither a download link nor a live figure is invented.
   await expect(page.getByRole("link", { name: "Get the Android app" })).toHaveCount(0);
+  await expect(page.locator(".live")).toHaveCount(0);
 });
 
-test("/pay with a malformed address fails closed", async ({ page }) => {
+test("the slip lines move with the keyboard and always total 100%", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Move the line between home now and savings" }).press("ArrowRight");
+  await expect(page.locator(".slip-rows output")).toHaveText(["$110.00", "$50.00", "$40.00"]);
+  await page.getByRole("button", { name: "Move the line between savings and stocks" }).press("ArrowLeft");
+  await expect(page.locator(".slip-rows output")).toHaveText(["$110.00", "$40.00", "$50.00"]);
+});
+
+test("a pasted link or address opens the recipient page; nonsense is refused", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("Your Portionly link or address").fill("not an address");
+  await page.getByRole("button", { name: "See what arrived" }).click();
+  await expect(page.getByRole("alert")).toHaveText("That doesn't look like a Portionly link or address.");
+
+  await page.getByLabel("Your Portionly link or address").fill(`https://portionly-three.vercel.app/pay/${funded}`);
+  await page.getByRole("button", { name: "See what arrived" }).click();
+  await expect(page).toHaveURL(new RegExp(`/pay/${funded}$`));
+});
+
+test("/pay/<address> reads real balances from Monad and offers the chain evidence", async ({ page }) => {
+  await page.goto(`/pay/${funded}`);
+  await expect(page.getByRole("heading", { name: "Here's what arrived." })).toBeVisible();
+  await expect(page.getByTestId("pay-address")).toHaveAttribute("title", funded);
+  await expect(page.getByTestId("spend")).toHaveText(/^\$\d[\d,]*\.\d{2}$/, { timeout: 30_000 });
+  await expect(page.getByTestId("savings")).toHaveText(/^\$\d[\d,]*\.\d{2}$/);
+  await expect(page.getByTestId("stocks")).toContainText("aQQQ");
+  await expect(page.getByText(/^Read from Monad at block \d+\./)).toBeVisible();
+  await expect(page.getByRole("link", { name: "See this account on the explorer" })).toHaveAttribute("href", `https://monadscan.com/address/${funded}`);
+  await expect(page.getByText("Payment history isn't connected on this page.")).toBeVisible();
+});
+
+test("older ?recipient= links still open the recipient page", async ({ page }) => {
+  await page.goto(`/?recipient=${funded}`);
+  await expect(page.getByRole("heading", { name: "Here's what arrived." })).toBeVisible();
+});
+
+test("a malformed pay link fails closed", async ({ page }) => {
   await page.goto("/pay/0x123");
-  await expect(page.getByRole("alert").first()).toHaveText("This pay link does not contain a valid address.");
-  await expect(page.getByText("Live balance", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toHaveText("This pay link does not contain a valid address.");
+  await expect(page.getByTestId("spend")).toHaveCount(0);
+});
+
+test("the proof page says so when no indexer is configured", async ({ page }) => {
+  await page.goto("/proof");
+  await expect(page.getByRole("heading", { name: "Every payment, in the open." })).toBeVisible();
+  await expect(page.getByText("The indexer isn't connected on this page.")).toBeVisible();
 });

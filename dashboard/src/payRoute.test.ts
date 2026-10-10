@@ -36,6 +36,7 @@ describe("vercel.json", () => {
     config.rewrites.some(({ source }) => new RegExp(`^${source.replace(/:path\*/g, ".*")}$`).test(path));
   it("rewrites /pay/* to the SPA", () => {
     expect(matches(`/pay/${checksummed}`)).toBe(true);
+    expect(matches("/proof")).toBe(true);
     expect(config.rewrites.every((r) => r.destination === "/index.html")).toBe(true);
   });
   it("never rewrites assetlinks.json or other static paths", () => {
