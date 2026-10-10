@@ -64,7 +64,7 @@ function Row({ name, note, amount, color, fg, off, micro, code, rates }: { name:
   );
 }
 
-function WhoSection({ p }: { p: Portionly }) {
+function WhoSection({ p, onPicked }: { p: Portionly; onPicked: () => void }) {
   async function paste(): Promise<void> {
     p.setError(null);
     p.setRecipient(p.normalizeTyped(await Clipboard.getStringAsync()));
@@ -75,7 +75,7 @@ function WhoSection({ p }: { p: Portionly }) {
       <T variant="h2">Who is it for?</T>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
         {p.people.map((person) => (
-          <Chip key={person.index} label={person.name} active={!p.sendByLink && p.activeIndex === person.index} onPress={() => { p.setSendByLink(false); p.selectAccount(person.index, person.recipient); }} />
+          <Chip key={person.index} label={person.name} active={!p.sendByLink && p.activeIndex === person.index} onPress={() => { p.setSendByLink(false); p.selectAccount(person.index, person.recipient); onPicked(); }} />
         ))}
         <Chip label="Someone new" active={!p.sendByLink && p.activeIndex === 0} onPress={() => { p.setSendByLink(false); p.selectAccount(0, ""); }} />
         <Chip label="Send by link" active={p.sendByLink} onPress={() => { p.selectAccount(0, ""); p.setSendByLink(true); }} />
@@ -83,12 +83,6 @@ function WhoSection({ p }: { p: Portionly }) {
       {p.sendByLink ? (
         <View style={{ marginTop: 14, gap: 14 }}>
           <T variant="small">For someone who has no account yet. They open the link and collect with a fingerprint.</T>
-          {p.rates && (
-            <View style={{ gap: 8 }}>
-              <T variant="label">Show amounts in</T>
-              <CurrencyPicker label="Show amounts in" value={p.oneOffCurrency} onChange={p.setOneOffCurrency} />
-            </View>
-          )}
         </View>
       ) : p.activePerson ? (
         <T variant="small" style={{ marginTop: 14 }}>
@@ -107,12 +101,6 @@ function WhoSection({ p }: { p: Portionly }) {
             }}
             right={<Button small variant="ghost" label="Paste" disabled={p.busy !== null} onPress={() => void paste()} />}
           />
-          {p.rates && (
-            <View style={{ gap: 8, marginTop: 14 }}>
-              <T variant="label">Show amounts in</T>
-              <CurrencyPicker label="Show amounts in" value={p.oneOffCurrency} onChange={p.setOneOffCurrency} />
-            </View>
-          )}
         </View>
       )}
     </Surface>
@@ -418,9 +406,13 @@ export function Send({ p }: { p: Portionly }) {
   const linkReview = p.sendByLink && p.linkReview !== null;
   const split = p.mode === "grow" ? toSplit(p.allocation) : { home: 100, save: 0, stocks: 0 };
   const canReview = total > 0n && (p.sendByLink || p.recipient.trim() !== "") && p.allocationTotal === 100 && p.busy === null;
+  // Step one asks only who it is for. Arriving with a person already chosen (from Home) skips straight to the amount.
+  const [step, setStep] = useState<"who" | "amount">(p.activeIndex !== 0 ? "amount" : "who");
+  const hasWho = p.sendByLink || p.activePerson !== null || /^0x[0-9a-fA-F]{40}$/.test(p.recipient.trim());
+  const whoLabel = p.sendByLink ? "By link" : p.activePerson ? `To ${p.activePerson.name}` : `To ${shortAddress(p.recipient)}`;
 
   return (
-    <Screen resetKey={p.review || linkReview ? "review" : p.busy === BUSY_SENDING || linkSending ? "sending" : "form"}>
+    <Screen resetKey={p.review || linkReview ? "review" : p.busy === BUSY_SENDING || linkSending ? "sending" : step}>
       <LockBanner p={p} />
       {linkSending ? (
         <LinkSendingView p={p} />
@@ -435,8 +427,31 @@ export function Send({ p }: { p: Portionly }) {
           <Rise>
             <T variant="title">Send money</T>
           </Rise>
-          <Rise index={1}><WhoSection p={p} /></Rise>
+          {step === "who" || !hasWho ? (
+            <>
+              <Rise index={1}><WhoSection p={p} onPicked={() => setStep("amount")} /></Rise>
+              {p.error && <Notice tone="error" text={p.error} />}
+              <Rise index={2}>
+                <Button label="Continue" disabled={!hasWho} onPress={() => { p.setError(null); setStep("amount"); }} />
+              </Rise>
+            </>
+          ) : (
+            <>
+          <Rise index={1}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <T variant="strong">{whoLabel}</T>
+              <Button small variant="ghost" label="Change" disabled={p.busy !== null} onPress={() => { p.setReview(null); setStep("who"); }} />
+            </View>
+          </Rise>
           <Rise index={2}><AmountSection p={p} /></Rise>
+          {p.rates && !p.activePerson && (
+            <Rise index={3}>
+              <View style={{ gap: 8 }}>
+                <T variant="label">Show amounts in their currency</T>
+                <CurrencyPicker label="Show amounts in" value={p.oneOffCurrency} onChange={p.setOneOffCurrency} />
+              </View>
+            </Rise>
+          )}
           <Rise index={3}><PortionSection p={p} /></Rise>
           {p.error && <Notice tone="error" text={p.error} />}
           <Rise index={4}>
@@ -452,6 +467,8 @@ export function Send({ p }: { p: Portionly }) {
             )}
           </Rise>
           {split.stocks > 0 && !p.sendByLink && <T variant="small" style={{ textAlign: "center" }}>You will see the live price before anything is sent.</T>}
+            </>
+          )}
         </>
       )}
     </Screen>

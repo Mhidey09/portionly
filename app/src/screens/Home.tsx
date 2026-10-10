@@ -42,7 +42,9 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
   // Keep the last person so the sheet can slide away without going blank.
   const [last, setLast] = useState<Person | null>(person);
   if (person && person !== last) setLast(person);
-  const shown = person ?? last;
+  // Always read the saved person fresh, so a change (like their currency) shows the moment it is made.
+  const picked = person ?? last;
+  const shown = picked ? p.people.find((entry) => entry.index === picked.index) ?? picked : null;
   const balances = shown ? p.peopleBalances[shown.index] : undefined;
   const topUpBusy = p.busy !== null && p.busy.startsWith("Topping up");
   const unlocked = p.wallets !== null;
@@ -59,7 +61,7 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
             </View>
           </View>
           <View>
-            <T variant="label">In this wallet</T>
+            <T variant="label">Set aside for {shown.name}, not sent yet</T>
             {balances ? <Money value={Number(formatBalances(balances).ausd)} variant="display" style={{ fontSize: 44, lineHeight: 50 }} /> : <T variant="display" style={{ fontSize: 44, lineHeight: 50 }}>{unlocked ? "Loading" : "Locked"}</T>}
             {balances && <LocalLine micro={balances.ausd} code={shown.currency} rates={p.rates} />}
           </View>
@@ -67,18 +69,18 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
             <T variant="label">Their currency</T>
             <CurrencyPicker label={`Currency for ${shown.name}`} value={shown.currency} onChange={(code) => void p.changePersonCurrency(shown, code)} />
           </View>
-          <T variant="small">This is a separate wallet inside your account, only for paying {shown.name}. They see this wallet, not your main balance.</T>
+          <T variant="small">Money you set aside for {shown.name} waits in its own wallet inside your account. It is still yours until you send it. They see that wallet, not your main balance.</T>
           {p.error && <Notice tone="error" text={p.error} />}
           {unlocked ? (
             <>
               <Divider />
               <Field
-                label="Amount to add in dollars"
+                label="Amount to set aside in dollars"
                 keyboardType="decimal-pad"
                 value={p.topUpInputs[shown.index] ?? ""}
                 onChangeText={(value) => p.setTopUpInputs({ ...p.topUpInputs, [shown.index]: cleanAmountInput(value) })}
               />
-              <Button variant="secondary" label="Top up from my main wallet" loading={topUpBusy} disabled={p.busy !== null || (p.topUpInputs[shown.index] ?? "") === ""} onPress={() => void p.topUp(shown)} />
+              <Button variant="secondary" label="Set aside from my main wallet" loading={topUpBusy} disabled={p.busy !== null || (p.topUpInputs[shown.index] ?? "") === ""} onPress={() => void p.topUp(shown)} />
               <T variant="small">The network fee is topped up for you when this wallet runs low.</T>
               <Button
                 label={`Send to ${shown.name}`}
@@ -411,7 +413,7 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
                         <Avatar name={person.name} index={person.index} />
                         <View style={{ flex: 1 }}>
                           <T variant="strong">{person.name}</T>
-                          <T variant="small">{balances ? "In their wallet" : p.wallets ? "Loading" : "Unlock to see"}</T>
+                          <T variant="small">{balances ? "Set aside, not sent yet" : p.wallets ? "Loading" : "Unlock to see"}</T>
                         </View>
                         {balances && (
                           <View style={{ alignItems: "flex-end" }}>
