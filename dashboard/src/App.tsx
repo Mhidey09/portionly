@@ -9,7 +9,7 @@ type Theme = "light" | "dark";
 
 function initialTheme(): Theme {
   try {
-    const saved = localStorage.getItem("portionly.theme");
+    const saved = localStorage.getItem("portionly.theme.v2");
     if (saved === "light" || saved === "dark") return saved;
   } catch {
     /* storage can be blocked; fall through to the default */
@@ -40,7 +40,7 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     try {
-      localStorage.setItem("portionly.theme", theme);
+      localStorage.setItem("portionly.theme.v2", theme);
     } catch {
       /* not essential */
     }
