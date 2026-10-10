@@ -10,7 +10,9 @@ Input 0.000686925658185242 aQQQ. Live Uniswap v4 quote 0.491042 AUSD; signed min
 - Approve Universal Router: `0x34aca959a39ffa9cdbac81fd4982fff37126807c9b5dd429073cb7b7bd2353ff`
 - Sell: `0x9187d5b8dab62dbb35b0ed59961bbcbdda49cc439256ce200285dfe2264fe64b`
 
-The buy and sell each cross the 0.9% fee aQQQ/USDC pool, so a same-day round trip on this amount cost about 1.8% (0.5 AUSD in, about 0.491 AUSD back at quote).
+Receipt: 686925658185242 aQQQ out, 491042 AUSD in. The seller received exactly the quoted amount.
+
+The buy and sell each cross the 0.9% fee aQQQ/USDC pool, so a same-day round trip on this amount cost about 1.8% (0.5 AUSD in, 0.491042 AUSD back).
 
 ## Withdraw savings instantly (Upshift `instantRedeem`, 0.2% fee)
 
@@ -18,6 +20,8 @@ The buy and sell each cross the 0.9% fee aQQQ/USDC pool, so a same-day round tri
 
 - Approve savings: `0x09b1d08780afcedde554a9b737e1468d2b8f331dc3ee2e75b75df39683a33899`
 - Withdraw: `0x2a8a689305a313137b7e9495b0d209802579b830c513f9c41f963def511bc416`
+
+Receipt: 238935 earnAUSD out, 249500 AUSD in.
 
 ## Standard withdrawal (no fee, after the vault's lag)
 
