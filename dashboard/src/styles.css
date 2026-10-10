@@ -302,8 +302,9 @@ main { max-width: 72rem; margin: 0 auto; padding: 0 1.1rem; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 /* Footer */
-.foot { display: grid; gap: 0.9rem; padding: 2rem 1.1rem 2.5rem; font-size: 0.88rem; color: var(--muted); max-width: 72rem; margin: 0 auto; text-align: center; }
-.foot nav { display: flex; justify-content: center; gap: 1.2rem; }
+.foot { display: grid; gap: 0.9rem; padding: 1rem 1.1rem 1.6rem; font-size: 0.8rem; color: var(--muted); max-width: 72rem; margin: 0 auto; text-align: center; }
+.foot nav { display: none; }
+.foot-more { display: none; }
 
 /* Wider screens: same design with more room. */
 @media (min-width: 48rem) {
@@ -336,6 +337,8 @@ main { max-width: 72rem; margin: 0 auto; padding: 0 1.1rem; }
   .received { padding: 3rem !important; justify-items: center; text-align: center; }
   .received form { grid-template-columns: 1fr auto; width: 100%; max-width: 40rem; }
   .foot { display: flex; justify-content: space-between; text-align: left; padding: 2rem 2.5rem 3rem; }
+  .foot nav { display: flex; gap: 1.2rem; }
+  .foot-more { display: inline; }
   .recipient, .proof { padding: 3rem 0 4rem; gap: 2rem; }
 }
 

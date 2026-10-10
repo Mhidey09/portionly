@@ -60,12 +60,12 @@ export default function Landing() {
         <div className="hero-copy">
           <p className="eyebrow">Money home, on Monad</p>
           <h1>
-            Send money home.
+            Don't just send it.
             <br />
-            Decide <em>what it becomes.</em>
+            <em>Portion it.</em>
           </h1>
           <p className="lede">
-            One payment can pay today's bills, build savings that earn, and buy a piece of the stock market. You choose the portions. It all lands in their own account in seconds.
+            One payment pays today's bills, builds savings and buys stocks. You choose the portions. It all lands in their own account in seconds.
           </p>
           <div className="cta">
             {apkUrl && <a className="button solid" href={apkUrl} rel="noreferrer">Get the Android app</a>}

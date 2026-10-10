@@ -76,7 +76,7 @@ export default function App() {
       </main>
 
       <footer className="foot">
-        <span>Portionly never holds your money. It moves straight between your accounts on Monad.</span>
+        <span>Portionly never holds your money.<span className="foot-more"> It moves straight between your accounts on Monad.</span></span>
         <nav aria-label="Footer">
           <a href="/">Home</a>
           <a href="/#received">I was sent money</a>

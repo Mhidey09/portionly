@@ -4,7 +4,7 @@ const funded = "0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2";
 
 test("landing explains the product and the slip responds to the mode", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Send money home.");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Portion it.");
   await expect(page.getByRole("tab", { name: "Send + grow" })).toHaveAttribute("aria-selected", "true");
   const rows = page.locator(".slip-rows output");
   await expect(rows).toHaveText(["$100.00", "$60.00", "$40.00"]);
