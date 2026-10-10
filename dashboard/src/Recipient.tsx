@@ -4,6 +4,7 @@ import { SlipBar } from "./Slip";
 import { explorerAddress, readRecipient, type RecipientSnapshot } from "./data";
 import { explorerTx, formatDate, loadHistory, trimAmount, type HistoryState, type PlanRow } from "./history";
 import { apkLink } from "./payRoute";
+import { APK_URL } from "./release";
 import { useTween } from "./motion";
 
 function Dollars({ value, testId }: { value: string; testId: string }) {
@@ -11,7 +12,7 @@ function Dollars({ value, testId }: { value: string; testId: string }) {
   return <strong data-testid={testId}>${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>;
 }
 
-const apkUrl = apkLink(import.meta.env.VITE_APK_URL);
+const apkUrl = apkLink(APK_URL);
 const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
 const cents = (value: string) => Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 

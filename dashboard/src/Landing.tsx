@@ -2,9 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import Slip, { SlipBar } from "./Slip";
 import { loadTotals, type Totals } from "./totals";
 import { apkLink } from "./payRoute";
+import { APK_URL } from "./release";
 import { parseRecipientLink } from "./recipientLink";
 
-const apkUrl = apkLink(import.meta.env.VITE_APK_URL);
+const apkUrl = apkLink(APK_URL);
 
 /** Adds .in to sections as they scroll into view, so they rise once instead of sitting still. */
 function useReveal() {

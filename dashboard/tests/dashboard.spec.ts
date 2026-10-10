@@ -14,8 +14,8 @@ test("landing explains the product and the slip responds to the mode", async ({ 
 
   await page.getByLabel("Example amount in dollars").fill("80");
   await expect(rows.first()).toHaveText("$80.00");
-  // No APK URL or indexer is configured in tests, so neither a download link nor a live figure is invented.
-  await expect(page.getByRole("link", { name: "Get the Android app" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Get the Android app" })).toHaveAttribute("href", /^https:\/\/expo\.dev\/artifacts\/eas\/.+\.apk$/);
+  // No indexer is configured in tests, so no live figure is invented.
   await expect(page.locator(".live")).toHaveCount(0);
 });
 
