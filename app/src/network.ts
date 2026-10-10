@@ -12,7 +12,7 @@ import {
 } from "viem";
 import { monad } from "viem/chains";
 import { toViemAccount } from "@category-labs/mera/viem";
-import { ADDRESSES, buildAqqqProofPlan, type AqqqProofPlan } from "./aqqqProofPlan";
+import { ADDRESSES, buildAqqqProofPlan, type AqqqProofPlan, type PlannedCall } from "./aqqqProofPlan";
 import { portionlySplitterAbi, type PortionlyPlan } from "./portionlyPlan";
 import { MONAD_CHAIN_ID, MONAD_RPC_URL } from "./config";
 import { buildFundingCalls } from "./funding";
@@ -64,7 +64,7 @@ const quoterAbi = [
 
 const publicClient = createPublicClient({ chain: monad, transport: http(MONAD_RPC_URL) });
 
-type Balances = { ausd: bigint; aqqq: bigint; mon: bigint };
+type Balances = { ausd: bigint; aqqq: bigint; mon: bigint; earn: bigint };
 type Quote = { amountOut: bigint; gasEstimate: bigint; observedAtMs: number };
 type ExecutionUpdate = { index: number; label: string; hash?: Hash; state: "signing" | "pending" | "confirmed" };
 
@@ -75,12 +75,13 @@ async function assertMonad(): Promise<void> {
 
 async function readBalances(account: Address): Promise<Balances> {
   await assertMonad();
-  const [mon, ausd, aqqq] = await Promise.all([
+  const [mon, ausd, aqqq, earn] = await Promise.all([
     publicClient.getBalance({ address: account }),
     publicClient.readContract({ address: ADDRESSES.ausd, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
     publicClient.readContract({ address: ADDRESSES.aqqq, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
+    publicClient.readContract({ address: ADDRESSES.growShare, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
   ]);
-  return { mon, ausd, aqqq };
+  return { mon, ausd, aqqq, earn };
 }
 
 async function quoteAusdToAqqq(amountIn: bigint): Promise<Quote> {
@@ -258,8 +259,70 @@ async function fundPerson(
   return hashes;
 }
 
-function formatBalances(value: Balances): { ausd: string; aqqq: string; mon: string } {
-  return { ausd: formatUnits(value.ausd, 6), aqqq: formatUnits(value.aqqq, 18), mon: formatUnits(value.mon, 18) };
+function formatBalances(value: Balances): { ausd: string; aqqq: string; mon: string; earn: string } {
+  return { ausd: formatUnits(value.ausd, 6), aqqq: formatUnits(value.aqqq, 18), mon: formatUnits(value.mon, 18), earn: formatUnits(value.earn, 6) };
+}
+
+const upshiftReadAbi = [
+  { type: "function", name: "previewRedemption", stateMutability: "view", inputs: [{ name: "shares", type: "uint256" }, { name: "isInstant", type: "bool" }], outputs: [{ name: "assetsAmount", type: "uint256" }, { name: "assetsAfterFee", type: "uint256" }] },
+  { type: "function", name: "getWithdrawalEpoch", stateMutability: "view", inputs: [], outputs: [{ name: "year", type: "uint256" }, { name: "month", type: "uint256" }, { name: "day", type: "uint256" }, { name: "claimableEpoch", type: "uint256" }] },
+] as const;
+
+/** AUSD the vault would pay for these shares: instant (after its fee) or standard (after its lag). */
+async function previewSavings(shares: bigint): Promise<{ instant: bigint; standard: bigint }> {
+  if (shares === 0n) return { instant: 0n, standard: 0n };
+  const [[, instant], [standard]] = await Promise.all([
+    publicClient.readContract({ address: ADDRESSES.growVault, abi: upshiftReadAbi, functionName: "previewRedemption", args: [shares, true] }),
+    publicClient.readContract({ address: ADDRESSES.growVault, abi: upshiftReadAbi, functionName: "previewRedemption", args: [shares, false] }),
+  ]);
+  return { instant, standard };
+}
+
+/** The date a standard withdrawal requested now becomes claimable. */
+async function readWithdrawalDate(): Promise<{ year: number; month: number; day: number; claimableAt: number }> {
+  const [year, month, day, claimableAt] = await publicClient.readContract({ address: ADDRESSES.growVault, abi: upshiftReadAbi, functionName: "getWithdrawalEpoch" });
+  return { year: Number(year), month: Number(month), day: Number(day), claimableAt: Number(claimableAt) };
+}
+
+async function quoteAqqqToAusd(amountIn: bigint): Promise<Quote> {
+  if (amountIn <= 0n || amountIn > (1n << 128n) - 1n) throw new Error("Quote amount is outside uint128 range");
+  await assertMonad();
+  const data = encodeFunctionData({
+    abi: quoterAbi,
+    functionName: "quoteExactInput",
+    args: [
+      {
+        exactCurrency: ADDRESSES.aqqq,
+        path: [
+          { intermediateCurrency: ADDRESSES.usdc, fee: 9_000, tickSpacing: 90, hooks: "0x0000000000000000000000000000000000000000", hookData: "0x" },
+          { intermediateCurrency: ADDRESSES.ausd, fee: 50, tickSpacing: 1, hooks: "0x0000000000000000000000000000000000000000", hookData: "0x" },
+        ],
+        exactAmount: amountIn,
+      },
+    ],
+  });
+  const response = await publicClient.call({ to: ADDRESSES.quoter, data });
+  if (!response.data) throw new Error("Quoter returned no data");
+  const [amountOut, gasEstimate] = decodeFunctionResult({ abi: quoterAbi, functionName: "quoteExactInput", data: response.data });
+  return { amountOut, gasEstimate, observedAtMs: Date.now() };
+}
+
+/** Sign and send planned calls in order, stopping at the first revert. */
+async function sendCalls(wallet: Wallet, calls: readonly PlannedCall[], onUpdate: (update: ExecutionUpdate) => void): Promise<Hash[]> {
+  await assertMonad();
+  const account = toViemAccount(wallet.session);
+  const client = createWalletClient({ account, chain: monad, transport: http(MONAD_RPC_URL) });
+  const hashes: Hash[] = [];
+  for (const [index, call] of calls.entries()) {
+    onUpdate({ index, label: call.label, state: "signing" });
+    const hash = await client.sendTransaction({ account, chain: monad, to: call.to, data: call.data, value: call.value });
+    hashes.push(hash);
+    onUpdate({ index, label: call.label, hash, state: "pending" });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash, confirmations: 1 });
+    if (receipt.status !== "success") throw new Error(`${call.label} reverted: ${hash}`);
+    onUpdate({ index, label: call.label, hash, state: "confirmed" });
+  }
+  return hashes;
 }
 
 async function claimLocked(wallet: Wallet, key: Hex): Promise<Hash> {
@@ -272,5 +335,5 @@ async function claimLocked(wallet: Wallet, key: Hex): Promise<Hash> {
   return hash;
 }
 
-export { claimLocked, executePortionly, executeProof, formatBalances, fundPerson, prepareProof, quoteAusdToAqqq, quoteOneAusd, readBalances };
+export { claimLocked, previewSavings, quoteAqqqToAusd, readWithdrawalDate, sendCalls, executePortionly, executeProof, formatBalances, fundPerson, prepareProof, quoteAusdToAqqq, quoteOneAusd, readBalances };
 export type { Balances, ExecutionUpdate, Quote };

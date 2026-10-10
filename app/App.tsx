@@ -21,6 +21,10 @@ import { ADDRESSES } from "./src/aqqqProofPlan";
 import { envioUrl, splitterAddress } from "./src/config";
 import {
   claimLocked,
+  previewSavings,
+  quoteAqqqToAusd,
+  readWithdrawalDate,
+  sendCalls,
   executePortionly,
   formatBalances,
   fundPerson,
@@ -33,7 +37,8 @@ import {
 import { buildPortionlyPlan, LOCK_DAYS, type LockDays, type PortionlyPlan } from "./src/portionlyPlan";
 import { parseRecipientInput, receiveLink } from "./src/receive";
 import { canClaim, fetchLocks, type LockedSaving } from "./src/locks";
-import { loadAccount, loadPeople, savePeople } from "./src/storage";
+import { buildClaimWithdrawalCall, buildSellStocksCalls, buildWithdrawSavingsCalls, type Withdrawal } from "./src/recipientActions";
+import { loadWithdrawals, saveWithdrawals, type PendingWithdrawal, loadAccount, loadPeople, savePeople } from "./src/storage";
 import {
   createAccount,
   describeError,
@@ -112,6 +117,10 @@ export default function App() {
   const [lockDays, setLockDays] = useState<LockDays>(0);
   const [locks, setLocks] = useState<LockedSaving[] | null>(null);
   const [locksError, setLocksError] = useState<string | null>(null);
+  const [savingsValue, setSavingsValue] = useState<{ instant: bigint; standard: bigint } | null>(null);
+  const [sellReview, setSellReview] = useState<{ amountIn: bigint; quoted: bigint; minimumOut: bigint; calls: ReturnType<typeof buildSellStocksCalls>["calls"] } | null>(null);
+  const [withdrawals, setWithdrawals] = useState<PendingWithdrawal[]>([]);
+  const [moneyNote, setMoneyNote] = useState<string | null>(null);
   const [allocation, setAllocation] = useState<Allocation>(DEFAULT_ALLOCATION);
   const [review, setReview] = useState<Review | null>(null);
   const [progress, setProgress] = useState<ExecutionUpdate | null>(null);
@@ -190,6 +199,95 @@ export default function App() {
       await refresh(wallets.main.address);
     } catch (caught) {
       setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  useEffect(() => {
+    loadWithdrawals().then(setWithdrawals).catch(() => setWithdrawals([]));
+  }, []);
+
+  useEffect(() => {
+    setSellReview(null);
+    if (!balances || balances.earn === 0n) {
+      setSavingsValue(balances ? { instant: 0n, standard: 0n } : null);
+      return;
+    }
+    previewSavings(balances.earn).then(setSavingsValue).catch(() => setSavingsValue(null));
+  }, [balances]);
+
+  async function withdrawSavings(kind: Withdrawal): Promise<void> {
+    if (!wallet || !balances) return;
+    setBusy(kind === "instant" ? "Withdrawing savings" : "Requesting withdrawal");
+    setError(null);
+    setMoneyNote(null);
+    try {
+      const shares = balances.earn;
+      const calls = buildWithdrawSavingsCalls({ account: wallet.address, shares, shareBalance: balances.earn, monBalance: balances.mon, kind });
+      const date = kind === "standard" ? await readWithdrawalDate() : null;
+      await sendCalls(wallet, calls, setProgress);
+      if (date) {
+        const next = [...withdrawals, { account: wallet.address, ...date, shares: shares.toString() }];
+        await saveWithdrawals(next);
+        setWithdrawals(next);
+        setMoneyNote(`Withdrawal requested. Collect it on or after ${new Date(date.claimableAt * 1000).toDateString()}.`);
+      } else {
+        setMoneyNote("Savings withdrawn to AUSD.");
+      }
+      await refresh(wallet.address);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function collectWithdrawal(pending: PendingWithdrawal): Promise<void> {
+    if (!wallet) return;
+    setBusy("Collecting withdrawal");
+    setError(null);
+    try {
+      await sendCalls(wallet, [buildClaimWithdrawalCall({ account: wallet.address, year: pending.year, month: pending.month, day: pending.day })], setProgress);
+      const next = withdrawals.filter((w) => w !== pending);
+      await saveWithdrawals(next);
+      setWithdrawals(next);
+      setMoneyNote("Withdrawal collected as AUSD.");
+      await refresh(wallet.address);
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function quoteSell(): Promise<void> {
+    if (!wallet || !balances || balances.aqqq === 0n) return;
+    setBusy("Getting a sell price");
+    setError(null);
+    try {
+      const quote = await quoteAqqqToAusd(balances.aqqq);
+      const built = buildSellStocksCalls({ account: wallet.address, amountIn: balances.aqqq, aqqqBalance: balances.aqqq, monBalance: balances.mon, quote, nowMs: Date.now(), slippageBps: 100 });
+      setSellReview({ amountIn: balances.aqqq, quoted: quote.amountOut, minimumOut: built.minimumOut, calls: built.calls });
+    } catch (caught) {
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sellStocks(): Promise<void> {
+    if (!wallet || !sellReview) return;
+    setBusy("Selling stocks");
+    setError(null);
+    try {
+      await sendCalls(wallet, sellReview.calls, setProgress);
+      setMoneyNote(`Sold for at least ${formatUnits(sellReview.minimumOut, 6)} AUSD.`);
+      setSellReview(null);
+      await refresh(wallet.address);
+    } catch (caught) {
+      setError(describeError(caught));
+      setSellReview(null);
     } finally {
       setBusy(null);
     }
@@ -529,6 +627,49 @@ export default function App() {
                 )}
               </View>
             </>
+          )}
+
+          {address && balances && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Your money</Text>
+              <View style={styles.personBox}>
+                <View style={styles.row}>
+                  <Text style={styles.routeName}>Savings that earn</Text>
+                  <Text style={styles.routeAmount}>{formatUnits(balances.earn, 6)} earnAUSD</Text>
+                </View>
+                <Text style={styles.helper}>Held in the Upshift AUSD vault. Earnings are not guaranteed.{savingsValue && balances.earn > 0n ? ` Worth ${formatUnits(savingsValue.standard, 6)} AUSD if withdrawn in about 3 days, or ${formatUnits(savingsValue.instant, 6)} AUSD now.` : ""}</Text>
+                {balances.earn > 0n && (wallet ? (
+                  <>
+                    <Button label="Withdraw now (0.2% fee)" onPress={() => void withdrawSavings("instant")} disabled={busy !== null} />
+                    <Button secondary label="Withdraw free in about 3 days" onPress={() => void withdrawSavings("standard")} disabled={busy !== null} />
+                  </>
+                ) : <Text style={styles.helper}>Unlock to withdraw.</Text>)}
+                {withdrawals.filter((w) => w.account.toLowerCase() === (wallet?.address ?? address).toLowerCase()).map((w) => {
+                  const ready = Date.now() / 1000 >= w.claimableAt;
+                  return (
+                    <View key={`${w.year}-${w.month}-${w.day}-${w.shares}`} style={styles.row}>
+                      <Text style={styles.helper}>{formatUnits(BigInt(w.shares), 6)} earnAUSD {ready ? "ready to collect" : `on its way, ready ${new Date(w.claimableAt * 1000).toDateString()}`}</Text>
+                      {ready && wallet && <Pressable onPress={() => void collectWithdrawal(w)} disabled={busy !== null}><Text style={styles.link}>Collect</Text></Pressable>}
+                    </View>
+                  );
+                })}
+              </View>
+              <View style={styles.personBox}>
+                <View style={styles.row}>
+                  <Text style={styles.routeName}>US tech stocks</Text>
+                  <Text style={styles.routeAmount}>{formatUnits(balances.aqqq, 18)} aQQQ</Text>
+                </View>
+                <Text style={styles.helper}>Apple, Nvidia, Amazon, Google and more. aQQQ tracks the Nasdaq-100; it is not direct share ownership. Selling crosses a 0.9% pool fee.</Text>
+                {balances.aqqq > 0n && wallet && !sellReview && <Button secondary label="Get sell price" onPress={() => void quoteSell()} disabled={busy !== null} />}
+                {sellReview && (
+                  <>
+                    <Text style={styles.helper}>About {formatUnits(sellReview.quoted, 6)} AUSD now, at least {formatUnits(sellReview.minimumOut, 6)} AUSD or the sale cancels.</Text>
+                    <Button label="Sell for AUSD" onPress={() => void sellStocks()} disabled={busy !== null} />
+                  </>
+                )}
+              </View>
+              {moneyNote && <Text style={styles.helper}>{moneyNote}</Text>}
+            </View>
           )}
 
           {address && (

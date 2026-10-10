@@ -68,11 +68,36 @@ async function savePeople(people: readonly Person[]): Promise<void> {
   await setItemAsync(PEOPLE_KEY, JSON.stringify(people));
 }
 
+type PendingWithdrawal = { account: string; year: number; month: number; day: number; claimableAt: number; shares: string };
+const WITHDRAWALS_KEY = "portionly.withdrawals.v1";
+
+// Standard savings withdrawals waiting for their claim date. Not secret.
+async function loadWithdrawals(): Promise<PendingWithdrawal[]> {
+  const raw = await getItemAsync(WITHDRAWALS_KEY);
+  if (raw === null) return [];
+  try {
+    const list = JSON.parse(raw) as unknown;
+    if (!Array.isArray(list)) return [];
+    return list.filter((w): w is PendingWithdrawal =>
+      typeof w === "object" && w !== null &&
+      typeof w.account === "string" && /^0x[0-9a-fA-F]{40}$/.test(w.account) &&
+      [w.year, w.month, w.day, w.claimableAt].every(Number.isSafeInteger) &&
+      typeof w.shares === "string" && /^\d+$/.test(w.shares));
+  } catch {
+    return [];
+  }
+}
+
+async function saveWithdrawals(list: readonly PendingWithdrawal[]): Promise<void> {
+  await setItemAsync(WITHDRAWALS_KEY, JSON.stringify(list));
+}
+
 async function clearAccount(): Promise<void> {
+  await deleteItemAsync(WITHDRAWALS_KEY);
   await deleteItemAsync(PEOPLE_KEY);
   await deleteItemAsync(PRF_KEY);
   await deleteItemAsync(ACCOUNT_KEY);
 }
 
-export { clearAccount, loadAccount, loadPeople, readStoredPrf, savePeople, storeAccount };
-export type { StoredAccount };
+export { clearAccount, loadAccount, loadPeople, loadWithdrawals, readStoredPrf, savePeople, saveWithdrawals, storeAccount };
+export type { PendingWithdrawal, StoredAccount };
