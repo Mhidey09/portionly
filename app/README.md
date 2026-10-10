@@ -1,63 +1,45 @@
-# Portionly Android
+# Portionly for Android
 
-Expo/React Native Android sender application for building and signing an exact AUSD allocation on Monad.
+The sender's and recipient's app. Expo and React Native, with a [Mera](https://docs.monad.xyz/guides/mera) passkey account: a fingerprint creates the account, and there is no seed phrase.
 
-## Implemented flow
+## What it does
 
-- Create or restore a Mera passkey-derived EVM account.
-- Read live MON, AUSD, and aQQQ balances.
-- Enter a recipient, total AUSD amount, and Now/Grow/Invest percentages.
-- Fetch a live AUSD-to-aQQQ quote.
-- Build an exact plan with a ten-minute deadline, 1% slippage ceiling, exact approval, and signed Invest-to-Grow fallback.
-- After deployment configuration, submit approval plus Splitter execution.
-- Require receipt, `PlanExecuted`, sender balance, recipient assets, and retained-balance verification.
+- **Send home:** all of a payment arrives as AUSD.
+- **Send + grow:** drag the portions between Home now, Savings that earn and US tech stocks, and optionally lock the savings for 1, 3, 6 or 12 months.
+- **People:** each person you pay gets their own wallet, derived from the same passkey.
+- **Receive:** a QR code and a link for others to pay you.
+- **Money:** withdraw savings, sell stocks and claim savings that were locked for you.
 
-Execution fails closed when `PORTIONLY_SPLITTER_ADDRESS` is missing or malformed.
+Before it shows "Sent" the app checks the sender's and recipient's balances and the `PlanExecuted` event against the plan that was signed.
 
-## Pinned safety limits
+## Layout
 
-- Chain: Monad mainnet, ID `143`
-- Quote age at plan creation: at most 60 seconds
-- Transaction deadline: 10 minutes
-- Slippage: at most 1%
-- Gas reserve check: 0.12 MON
-- AUSD approval: exact plan total
-- All displayed bucket amounts reconcile exactly to the input
+| Path | Purpose |
+|---|---|
+| `App.tsx` | Fonts, splash, first run pages, tabs |
+| `src/usePortionly.ts` | App state and actions |
+| `src/screens/` | Home, Send, Receive, Money, Onboarding |
+| `src/ui/` | Design system: theme, slip bar, buttons, tab bar, motion |
+| `src/portionlyPlan.ts` | Builds the plan and its two calls; pure and tested |
+| `src/recipientActions.ts` | Withdraw savings, claim, sell stocks; pure and tested |
+| `src/network.ts` | Chain reads, quotes, sending and checks after sending |
+| `src/wallet.ts`, `src/hd.ts`, `src/people.ts` | Passkey account, one wallet per person |
 
-## Source verification
+## Develop
 
 ```sh
-export PATH=/opt/node24/bin:$PATH
 npm ci
 npm test
 npm run typecheck
 ```
 
-## Native Android build
+## Build
 
-Requirements: Node 24, Java 17, Android SDK 36, a stable HTTPS relying-party host, and an Android signing decision.
-
-1. Serve `passkey-site/.well-known/assetlinks.json` from the relying-party host. Its package must be `com.portionly.app` and its fingerprint must match the final APK signer.
-2. Build:
+The passkey is bound to a website and to the app's signing key. Set `MERA_RP_ID` to a site that serves `/.well-known/assetlinks.json` listing your key's SHA 256 fingerprint for the package `com.portionly.app`.
 
 ```sh
-export MERA_RP_ID=<stable-host>
-# Set this only after deployment and bytecode verification:
-export PORTIONLY_SPLITTER_ADDRESS=<verified-address>
-npm run prebuild
-printf 'sdk.dir=/path/to/android-sdk\n' > android/local.properties
-npm run build:android:release
+MERA_RP_ID=your.site PORTIONLY_SPLITTER_ADDRESS=0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a \
+  eas build --platform android --profile preview
 ```
 
-The release APK is written to `android/app/build/outputs/apk/release/app-release.apk`.
-
-## Current boundary
-
-- Android source tests and typecheck pass.
-- A release APK has been built with a temporary TryCloudflare RP host and the debug signing key.
-- No physical Android passkey ceremony has been completed.
-- No Portionly contract address is configured.
-- No funded mainnet plan has been executed.
-- Expo's build dependency chain currently reports advisories for `node-forge` and an iOS-only `uuid` path. npm's force fix would downgrade Expo incompatibly and must not be applied without a tested migration.
-
-See the repository root `HANDOFF.md` for exact artifact checksums and next steps.
+Changes that touch only JavaScript ship with `eas update --channel preview`. Adding native code needs a new build and a new version number, so an update never reaches a build that cannot run it.

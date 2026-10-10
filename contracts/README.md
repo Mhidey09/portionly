@@ -62,4 +62,4 @@ forge script script/DeployPortionly.s.sol:DeployPortionly \
 
 Broadcast only after explicit approval, independent review, current gas simulation, isolated deployer funding, and a plan to verify runtime bytecode and immutables.
 
-No Portionly contract has been deployed at this checkpoint.
+Deployed on Monad mainnet. Addresses, transactions and bytecode checks are in [`docs/DEPLOYMENTS.md`](../docs/DEPLOYMENTS.md).
