@@ -2,11 +2,13 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useRef } from "react";
 import { Animated, Linking, TextInput, View } from "react-native";
 import { formatUnits, parseUnits } from "viem";
+import type { Rates } from "../currency";
 import { LOCK_DAYS } from "../portionlyPlan";
 import { BUSY_SENDING, type Portionly } from "../usePortionly";
 import { Button, ButtonRow } from "../ui/Button";
 import { Chip } from "../ui/Chip";
 import { Field } from "../ui/Field";
+import { CurrencyPicker, LocalLine, RateNote, showsLocal } from "../ui/Local";
 import { Tick } from "../ui/Icons";
 import { LockBanner } from "../ui/LockBanner";
 import { Money } from "../ui/Money";
@@ -41,7 +43,7 @@ function parseTotal(input: string): bigint {
   }
 }
 
-function Row({ name, note, amount, color, fg, off }: { name: string; note: string; amount: number; color: string; fg: string; off: boolean }) {
+function Row({ name, note, amount, color, fg, off, micro, code, rates }: { name: string; note: string; amount: number; color: string; fg: string; off: boolean; micro?: bigint; code?: string; rates?: Rates | null }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 14, opacity: off ? 0.4 : 1 }}>
       <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: color }} accessibilityElementsHidden importantForAccessibility="no">
@@ -51,7 +53,10 @@ function Row({ name, note, amount, color, fg, off }: { name: string; note: strin
         <T variant="strong">{name}</T>
         <T variant="small">{note}</T>
       </View>
-      <Money value={amount} variant="strong" style={{ fontSize: 20 }} />
+      <View style={{ alignItems: "flex-end" }}>
+        <Money value={amount} variant="strong" style={{ fontSize: 20 }} />
+        {micro !== undefined && micro > 0n && !off && <LocalLine micro={micro} code={code} rates={rates ?? null} align="right" />}
+      </View>
     </View>
   );
 }
@@ -88,6 +93,12 @@ function WhoSection({ p }: { p: Portionly }) {
             }}
             right={<Button small variant="ghost" label="Paste" disabled={p.busy !== null} onPress={() => void paste()} />}
           />
+          {p.rates && (
+            <View style={{ gap: 8, marginTop: 14 }}>
+              <T variant="label">Show amounts in</T>
+              <CurrencyPicker label="Show amounts in" value={p.oneOffCurrency} onChange={p.setOneOffCurrency} />
+            </View>
+          )}
         </View>
       )}
     </Surface>
@@ -119,6 +130,7 @@ function AmountSection({ p }: { p: Portionly }) {
           style={{ minWidth: 70, fontFamily: fonts.black, fontSize: 56, letterSpacing: -1.5, color: colors.ink, padding: 0, textAlign: "left" }}
         />
       </View>
+      {parseTotal(p.totalInput) > 0n && <LocalLine micro={parseTotal(p.totalInput)} code={p.sendCurrency} rates={p.rates} align="center" style={{ marginTop: 2 }} />}
       <T variant="small">{ready ? `${ready} ready in ${who}. Amounts are in digital dollars (AUSD).` : "Amounts are in digital dollars (AUSD)."}</T>
     </Surface>
   );
@@ -181,13 +193,18 @@ function PortionSection({ p }: { p: Portionly }) {
         </View>
       )}
       <Divider />
-      <Row name="Home now" note="Ready to spend" amount={dollars(amounts.home)} color={portionColors.home.bg} fg={portionColors.home.fg} off={split.home === 0} />
+      {showsLocal(p.sendCurrency, p.rates) && total > 0n && (
+        <View style={{ marginBottom: 12 }}>
+          <RateNote />
+        </View>
+      )}
+      <Row name="Home now" note="Ready to spend" amount={dollars(amounts.home)} color={portionColors.home.bg} fg={portionColors.home.fg} off={split.home === 0} micro={amounts.home} code={p.sendCurrency} rates={p.rates} />
       {growing && (
         <>
           <View style={{ height: 14 }} />
-          <Row name="Savings that earn" note="Kept in a savings vault" amount={dollars(amounts.save)} color={portionColors.save.bg} fg={portionColors.save.fg} off={split.save === 0} />
+          <Row name="Savings that earn" note="Kept in a savings vault" amount={dollars(amounts.save)} color={portionColors.save.bg} fg={portionColors.save.fg} off={split.save === 0} micro={amounts.save} code={p.sendCurrency} rates={p.rates} />
           <View style={{ height: 14 }} />
-          <Row name="US tech stocks" note="Apple, Nvidia, Amazon and more" amount={dollars(amounts.stocks)} color={portionColors.stocks.bg} fg={portionColors.stocks.fg} off={split.stocks === 0} />
+          <Row name="US tech stocks" note="Apple, Nvidia, Amazon and more" amount={dollars(amounts.stocks)} color={portionColors.stocks.bg} fg={portionColors.stocks.fg} off={split.stocks === 0} micro={amounts.stocks} code={p.sendCurrency} rates={p.rates} />
           <Divider />
           {split.stocks > 0 && (
             <T variant="small" style={{ marginBottom: 10 }}>If the stock price moves more than 1% while sending, that part goes to savings instead.</T>
@@ -219,15 +236,16 @@ function ReviewView({ p }: { p: Portionly }) {
         <Surface>
           <T variant="label">Sending to {to}</T>
           <Money value={dollars(review.total)} variant="display" style={{ fontSize: 48, lineHeight: 54 }} />
+          <LocalLine micro={review.total} code={p.sendCurrency} rates={p.rates} />
           <View style={{ marginTop: 14 }}>
             <SlipBar split={split} compact />
           </View>
           <Divider />
-          <Row name="Home now" note="Arrives as digital dollars" amount={dollars(review.nowAmount)} color={portionColors.home.bg} fg={portionColors.home.fg} off={review.nowAmount === 0n} />
+          <Row name="Home now" note="Arrives as digital dollars" amount={dollars(review.nowAmount)} color={portionColors.home.bg} fg={portionColors.home.fg} off={review.nowAmount === 0n} micro={review.nowAmount} code={p.sendCurrency} rates={p.rates} />
           {review.growAmount > 0n && (
             <>
               <View style={{ height: 14 }} />
-              <Row name="Savings that earn" note={unlockAt > 0n ? `Locked until ${dateOf(unlockAt)}` : "Open any time"} amount={dollars(review.growAmount)} color={portionColors.save.bg} fg={portionColors.save.fg} off={false} />
+              <Row name="Savings that earn" note={unlockAt > 0n ? `Locked until ${dateOf(unlockAt)}` : "Open any time"} amount={dollars(review.growAmount)} color={portionColors.save.bg} fg={portionColors.save.fg} off={false} micro={review.growAmount} code={p.sendCurrency} rates={p.rates} />
             </>
           )}
           {review.investAmount > 0n && (
@@ -240,6 +258,9 @@ function ReviewView({ p }: { p: Portionly }) {
                 color={portionColors.stocks.bg}
                 fg={portionColors.stocks.fg}
                 off={false}
+                micro={review.investAmount}
+                code={p.sendCurrency}
+                rates={p.rates}
               />
             </>
           )}
@@ -346,6 +367,8 @@ export function SendSuccess({ p, onDone }: { p: Portionly; onDone: () => void })
   const savedAmount = result.usedFallback ? plan.growAmount + plan.investAmount : plan.growAmount;
   const stocksAmount = result.usedFallback ? 0n : plan.investAmount;
   const split = amountsToSplit({ home: plan.nowAmount, save: savedAmount, stocks: stocksAmount }, plan.amountIn);
+  const recipientPerson = p.people.find((person) => person.recipient.toLowerCase() === plan.recipient.toLowerCase());
+  const currency = recipientPerson ? recipientPerson.currency : p.oneOffCurrency;
   const executeHash = result.hashes[1] ?? result.hashes[result.hashes.length - 1];
 
   return (
@@ -367,6 +390,11 @@ export function SendSuccess({ p, onDone }: { p: Portionly; onDone: () => void })
           <Rise index={3}>
             <Money value={dollars(plan.amountIn)} variant="display" style={{ fontSize: 48, lineHeight: 54 }} />
           </Rise>
+          {showsLocal(currency, p.rates) && (
+            <Rise index={3}>
+              <LocalLine micro={plan.amountIn} code={currency} rates={p.rates} align="center" />
+            </Rise>
+          )}
         </View>
         <Rise index={4}>
           <Surface>

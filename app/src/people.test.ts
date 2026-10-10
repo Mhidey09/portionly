@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addPerson, nextIndex, parsePeople, validateName } from "./people";
+import { addPerson, nextIndex, parsePeople, setPersonCurrency, validateName } from "./people";
 
 const a = "0x52908400098527886E0F7030069857D2E4169EE7";
 const b = "0x8617E340B3D01FA5F11F306F4090FD50E238070D";
@@ -43,5 +43,36 @@ describe("people", () => {
     expect(parsePeople(null)).toEqual([]);
     expect(parsePeople("{")).toEqual([]);
     expect(parsePeople("{}")).toEqual([]);
+  });
+
+  it("stores an optional, validated currency", () => {
+    const people = addPerson([], "Mum", a, "NGN");
+    expect(people[0]).toEqual({ index: 1, name: "Mum", recipient: a, currency: "NGN" });
+    expect("currency" in addPerson([], "Mum", a)[0]).toBe(false);
+    expect("currency" in addPerson([], "Mum", a, "")[0]).toBe(false);
+    expect(() => addPerson([], "Mum", a, "XYZ")).toThrow(/currency/);
+  });
+  it("changes and clears a person's currency", () => {
+    const people = addPerson(addPerson([], "Mum", a), "Sis", b, "PHP");
+    const set = setPersonCurrency(people, 1, "GHS");
+    expect(set[0].currency).toBe("GHS");
+    expect(set[1].currency).toBe("PHP");
+    const cleared = setPersonCurrency(set, 2, undefined);
+    expect("currency" in cleared[1]).toBe(false);
+    expect(() => setPersonCurrency(people, 1, "nope")).toThrow();
+    expect(setPersonCurrency(people, 9, "GHS")).toEqual(people);
+  });
+  it("parsePeople keeps stored people without a currency and only drops a bad currency", () => {
+    const c = "0x0000000000000000000000000000000000000001";
+    const raw = JSON.stringify([
+      { index: 1, name: "Old", recipient: a },
+      { index: 2, name: "New", recipient: b, currency: "KES" },
+      { index: 3, name: "Junk", recipient: c, currency: "XYZ" },
+    ]);
+    expect(parsePeople(raw)).toEqual([
+      { index: 1, name: "Old", recipient: a },
+      { index: 2, name: "New", recipient: b, currency: "KES" },
+      { index: 3, name: "Junk", recipient: c },
+    ]);
   });
 });

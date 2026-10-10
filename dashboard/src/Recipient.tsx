@@ -6,10 +6,20 @@ import { explorerTx, formatDate, loadHistory, trimAmount, type HistoryState, typ
 import { apkLink } from "./payRoute";
 import { APK_URL } from "./release";
 import { useTween } from "./motion";
+import CurrencySelect from "./CurrencySelect";
+import { REFERENCE_NOTE, type Rates } from "./currency";
+import { localFromDollars, useCurrency, useRates } from "./useRates";
 
 function Dollars({ value, testId }: { value: string; testId: string }) {
   const shown = useTween(Number(value), 900);
   return <strong data-testid={testId}>${shown.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>;
+}
+
+/** The quiet second line under a dollar amount. Counts with the dollars. Nothing at all without a fresh rate. */
+function Local({ value, cur, rates, testId }: { value: string | number; cur: string; rates: Rates | null; testId?: string }) {
+  const shown = useTween(Number(value), 900);
+  const text = localFromDollars(shown, cur, rates);
+  return text ? <small className="local" data-testid={testId}>{text}</small> : null;
 }
 
 const apkUrl = apkLink(APK_URL);
@@ -27,7 +37,7 @@ function splitOf(plan: PlanRow) {
   return { total: home + saved + bought, split: { home: homePct, save: savePct, stocks: Math.max(0, 100 - homePct - savePct) } };
 }
 
-function Payments({ state }: { state: HistoryState | "loading" }) {
+function Payments({ state, cur, rates }: { state: HistoryState | "loading"; cur: string; rates: Rates | null }) {
   if (state === "loading") return <p className="quiet" aria-busy="true">Loading payments.</p>;
   if (state.kind === "not-configured") return <p className="quiet">Payment history isn't connected on this page. The balances above are live.</p>;
   if (state.kind === "error") return <p className="quiet" role="alert">Payment history could not be loaded. {state.message} The balances above are still live.</p>;
@@ -41,7 +51,10 @@ function Payments({ state }: { state: HistoryState | "loading" }) {
           <li key={plan.txHash + plan.planId} data-testid="plan">
             <div className="payment-head">
               <time>{formatDate(plan.timestamp)}</time>
-              <strong>${cents(String(total))}</strong>
+              <div className="payment-total">
+                <strong>${cents(String(total))}</strong>
+                <Local value={total} cur={cur} rates={rates} testId="plan-local" />
+              </div>
             </div>
             <SlipBar split={split} compact />
             <p className="payment-parts">
@@ -67,6 +80,10 @@ export default function Recipient({ address }: { address: Address }) {
   const [snapshot, setSnapshot] = useState<RecipientSnapshot | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<HistoryState | "loading">("loading");
+  const { rates } = useRates();
+  const [chosen, setCurrency] = useCurrency();
+  // Only a currency we have a fresh rate for is ever shown.
+  const cur = rates && rates.rates[chosen] ? chosen : "";
 
   async function load() {
     setError("");
@@ -93,6 +110,12 @@ export default function Recipient({ address }: { address: Address }) {
         <p className="eyebrow">Account <span data-testid="pay-address" title={address}>{short(address)}</span></p>
         <h1>Here's what arrived.</h1>
         <button className="text-button" onClick={() => void load()}>Refresh</button>
+        {rates && (
+          <div className="cur-row">
+            <CurrencySelect label="Show in my currency" value={cur} onChange={setCurrency} />
+            {cur && <p className="quiet" data-testid="rate-note">{REFERENCE_NOTE}</p>}
+          </div>
+        )}
       </header>
 
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -104,11 +127,13 @@ export default function Recipient({ address }: { address: Address }) {
             <li className="home">
               <span>Ready to spend</span>
               <Dollars value={snapshot.ausd} testId="spend" />
+              <Local value={snapshot.ausd} cur={cur} rates={rates} testId="spend-local" />
               <p>Digital dollars (AUSD). Spend them or pass them on.</p>
             </li>
             <li className="save">
               <span>Savings</span>
               {snapshot.earnValue !== null ? <Dollars value={snapshot.earnValue} testId="savings" /> : <strong data-testid="savings">{trimAmount(snapshot.earn)} shares</strong>}
+              {snapshot.earnValue !== null && <Local value={snapshot.earnValue} cur={cur} rates={rates} testId="savings-local" />}
               <p>
                 {snapshot.earnValue !== null ? "What it is worth today if withdrawn. " : "Value is shown when withdrawn. "}
                 Earning in a savings vault. Earnings are not guaranteed.
@@ -134,7 +159,7 @@ export default function Recipient({ address }: { address: Address }) {
 
           <section className="payments-section" aria-labelledby="payments-title">
             <h2 id="payments-title">Payments</h2>
-            <Payments state={history} />
+            <Payments state={history} cur={cur} rates={rates} />
           </section>
 
           <p className="evidence">

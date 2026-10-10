@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Share } from "react-native";
 import { formatUnits, isAddress, parseUnits, type Address, type Hash } from "viem";
 import { gasTopUpFor } from "./funding";
-import { addPerson, type Person } from "./people";
+import { addPerson, setPersonCurrency, type Person } from "./people";
+import { useRates } from "./useRates";
 import { envioUrl, splitterAddress } from "./config";
 import {
   claimLocked,
@@ -63,6 +64,10 @@ export function usePortionly() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [newName, setNewName] = useState("");
   const [newRecipient, setNewRecipient] = useState("");
+  const [newCurrency, setNewCurrency] = useState<string | undefined>(undefined);
+  // For a one off send to someone who is not saved. Not remembered.
+  const [oneOffCurrency, setOneOffCurrency] = useState<string | undefined>(undefined);
+  const fx = useRates();
   const [topUpInputs, setTopUpInputs] = useState<Record<number, string>>({});
   const [knownAddress, setKnownAddress] = useState<Address | null>(null);
   const [balances, setBalances] = useState<Balances | null>(null);
@@ -115,6 +120,8 @@ export function usePortionly() {
   // The account that pays in the Payment card: Main, or the selected person's own account.
   const senderAddress = activeIndex === 0 ? address : wallet?.address ?? null;
   const shownBalances = useMemo(() => (balances ? formatBalances(balances) : null), [balances]);
+  // The currency amounts are shown in as a second line: the saved person's, or the one picked for a one off send.
+  const sendCurrency = activePerson ? activePerson.currency : oneOffCurrency;
   const plannedAllocation = mode === "home" ? SEND_HOME : allocation;
   const allocationTotal = Number(plannedAllocation.now || 0) + Number(plannedAllocation.grow || 0) + Number(plannedAllocation.invest || 0);
 
@@ -256,6 +263,7 @@ export function usePortionly() {
     setRefreshing(true);
     setError(null);
     try {
+      void fx.refresh();
       await refresh();
       if (wallets) await refreshPeople();
       await loadLocks();
@@ -343,11 +351,12 @@ export function usePortionly() {
     setBusy("Adding person");
     let added = false;
     try {
-      const next = addPerson(people, newName, parseRecipientInput(newRecipient));
+      const next = addPerson(people, newName, parseRecipientInput(newRecipient), newCurrency);
       await savePeople(next);
       setPeople(next);
       setNewName("");
       setNewRecipient("");
+      setNewCurrency(undefined);
       added = true;
       if (wallets) {
         // A new person needs a new signing session, which needs one more passkey unlock.
@@ -365,6 +374,17 @@ export function usePortionly() {
       setBusy(null);
     }
     return added;
+  }
+
+  /** Changes (or clears) the currency shown for a saved person. */
+  async function changePersonCurrency(person: Person, currency: string | undefined): Promise<void> {
+    try {
+      const next = setPersonCurrency(people, person.index, currency);
+      await savePeople(next);
+      setPeople(next);
+    } catch (caught) {
+      setError(describeError(caught));
+    }
   }
 
   async function topUp(person: Person): Promise<void> {
@@ -470,12 +490,13 @@ export function usePortionly() {
     balances, shownBalances, savingsValue, locks, locksError, withdrawals, moneyNote, sellReview,
     recipient, totalInput, mode, lockDays, allocation, plannedAllocation, allocationTotal,
     review, progress, result, newName, newRecipient, topUpInputs,
+    rates: fx.rates, ratesStatus: fx.status, newCurrency, oneOffCurrency, sendCurrency,
     // setters the screens use directly
     setRecipient, setTotalInput, setMode, setLockDays, setAllocation, setReview, setResult, setError,
-    setNewName, setNewRecipient, setTopUpInputs, setMoneyNote,
+    setNewName, setNewRecipient, setTopUpInputs, setMoneyNote, setNewCurrency, setOneOffCurrency,
     // actions
     connect, claim, withdrawSavings, collectWithdrawal, quoteSell, sellStocks, manualRefresh,
-    selectAccount, normalizeTyped, pasteRecipient, shareLink, submitPerson, topUp, makeReview, execute,
+    selectAccount, normalizeTyped, pasteRecipient, shareLink, submitPerson, changePersonCurrency, topUp, makeReview, execute,
   };
 }
 

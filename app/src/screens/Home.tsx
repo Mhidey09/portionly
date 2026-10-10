@@ -6,6 +6,7 @@ import { formatBalances } from "../network";
 import type { Portionly } from "../usePortionly";
 import { Button, ButtonRow } from "../ui/Button";
 import { Field } from "../ui/Field";
+import { CurrencyPicker, LocalLine, RateNote, showsLocal } from "../ui/Local";
 import { LockBanner } from "../ui/LockBanner";
 import { Money } from "../ui/Money";
 import { Notice } from "../ui/Notice";
@@ -54,6 +55,11 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
           <View>
             <T variant="label">In this wallet</T>
             {balances ? <Money value={Number(formatBalances(balances).ausd)} variant="display" style={{ fontSize: 44, lineHeight: 50 }} /> : <T variant="display" style={{ fontSize: 44, lineHeight: 50 }}>{unlocked ? "Loading" : "Locked"}</T>}
+            {balances && <LocalLine micro={balances.ausd} code={shown.currency} rates={p.rates} />}
+          </View>
+          <View style={{ gap: 8 }}>
+            <T variant="label">Their currency</T>
+            <CurrencyPicker label={`Currency for ${shown.name}`} value={shown.currency} onChange={(code) => void p.changePersonCurrency(shown, code)} />
           </View>
           <T variant="small">This is a separate wallet inside your account, only for paying {shown.name}. They see this wallet, not your main balance.</T>
           {p.error && <Notice tone="error" text={p.error} />}
@@ -105,6 +111,10 @@ function AddPersonSheet({ p, visible, onClose }: { p: Portionly; visible: boolea
         onChangeText={(value) => p.setNewRecipient(p.normalizeTyped(value))}
         right={<Button small variant="ghost" label="Paste" onPress={() => void paste()} />}
       />
+      <View style={{ gap: 8 }}>
+        <T variant="label">Their currency (optional)</T>
+        <CurrencyPicker label="Their currency" value={p.newCurrency} onChange={p.setNewCurrency} />
+      </View>
       {p.error && <Notice tone="error" text={p.error} />}
       {p.wallets && <T variant="small">Adding a person asks for your fingerprint one more time.</T>}
       <Button
@@ -204,13 +214,23 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
                           <T variant="strong">{person.name}</T>
                           <T variant="small">{balances ? "In their wallet" : p.wallets ? "Loading" : "Unlock to see"}</T>
                         </View>
-                        {balances && <T variant="strong">{formatUsd(balances.ausd)}</T>}
+                        {balances && (
+                          <View style={{ alignItems: "flex-end" }}>
+                            <T variant="strong">{formatUsd(balances.ausd)}</T>
+                            <LocalLine micro={balances.ausd} code={person.currency} rates={p.rates} align="right" />
+                          </View>
+                        )}
                       </View>
                     </RowButton>
                   </Rise>
                 </View>
               );
             })
+          )}
+          {p.people.some((person) => p.peopleBalances[person.index] && showsLocal(person.currency, p.rates)) && (
+            <View style={{ marginTop: 12 }}>
+              <RateNote />
+            </View>
           )}
         </Surface>
       </Rise>

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { reduced, useTween } from "./motion";
+import CurrencySelect from "./CurrencySelect";
+import { REFERENCE_NOTE, type Rates } from "./currency";
+import { localFromDollars, useCurrency, useRates } from "./useRates";
 
 export type Mode = "home" | "grow";
 export type Split = { home: number; save: number; stocks: number };
@@ -93,6 +96,11 @@ function Counted({ value }: { value: number }) {
   return <output>{money(useTween(value))}</output>;
 }
 
+function CountedLocal({ value, cur, rates }: { value: number; cur: string; rates: Rates | null }) {
+  const text = localFromDollars(useTween(value), cur, rates);
+  return text ? <small className="local">{text}</small> : null;
+}
+
 // What the slip shows by itself until someone touches it.
 const SHOWREEL: { mode: Mode; split: Split }[] = [
   { mode: "grow", split: { home: 50, save: 30, stocks: 20 } },
@@ -107,6 +115,9 @@ export default function Slip() {
   const [amount, setAmount] = useState(200);
   const [custom, setCustom] = useState<Split>({ home: 50, save: 30, stocks: 20 });
   const [touched, setTouched] = useState(false);
+  const { rates } = useRates();
+  const [chosen, setCurrency] = useCurrency();
+  const cur = rates && rates.rates[chosen] ? chosen : "";
   const split = mode === "home" ? { home: 100, save: 0, stocks: 0 } : custom;
 
   useEffect(() => {
@@ -158,10 +169,19 @@ export default function Slip() {
               <strong>{row.name}</strong>
               <p>{row.what}</p>
             </div>
-            <Counted value={(amount * row.share) / 100} />
+            <div className="slip-amt">
+              <Counted value={(amount * row.share) / 100} />
+              <CountedLocal value={(amount * row.share) / 100} cur={cur} rates={rates} />
+            </div>
           </li>
         ))}
       </ul>
+      {rates && (
+        <div className="slip-cur">
+          <CurrencySelect label="They receive in" value={cur} onChange={setCurrency} />
+          {cur && <p>{REFERENCE_NOTE}</p>}
+        </div>
+      )}
     </div>
   );
 }
