@@ -27,3 +27,13 @@ Runtime bytecode read with `cast code`:
 | `investExecutor()` | `0xe899fB7aD899d74b55b9a911D2d6DB6784d3c9db` |
 
 Explorer: <https://monadscan.com/address/0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a>
+
+## PortionlyLink (send to a link)
+
+Deployed 2026-10-10 by the same deployer from `contracts/script/DeployPortionlyLink.s.sol`.
+
+| Contract | Address | Deploy transaction |
+|---|---|---|
+| PortionlyLink | `0x67BCA6463B917940199c322C4b5678044936EdC7` | `0x4bc947c4f5f43a782648c43867e107093466cc3f5b39049129b068e34fc8484f` |
+
+No owner, admin or upgrade path. Immutables read back from the chain: `ausd()` is AUSD and `splitter()` is `0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a`. Runtime bytecode keccak: `0x979b4de16bc3a17f7b8a445eb89c3b58abdef7a0fd67339e42c7e3eee742dd83`.
