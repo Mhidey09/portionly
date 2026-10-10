@@ -92,6 +92,17 @@ async function saveWithdrawals(list: readonly PendingWithdrawal[]): Promise<void
   await setItemAsync(WITHDRAWALS_KEY, JSON.stringify(list));
 }
 
+const ONBOARDED_KEY = "portionly.onboarded.v1";
+
+// Whether the intro pages were seen. Not secret, so no requireAuthentication.
+async function loadOnboarded(): Promise<boolean> {
+  return (await getItemAsync(ONBOARDED_KEY)) === "1";
+}
+
+async function saveOnboarded(): Promise<void> {
+  await setItemAsync(ONBOARDED_KEY, "1");
+}
+
 async function clearAccount(): Promise<void> {
   await deleteItemAsync(WITHDRAWALS_KEY);
   await deleteItemAsync(PEOPLE_KEY);
@@ -99,5 +110,5 @@ async function clearAccount(): Promise<void> {
   await deleteItemAsync(ACCOUNT_KEY);
 }
 
-export { clearAccount, loadAccount, loadPeople, loadWithdrawals, readStoredPrf, savePeople, saveWithdrawals, storeAccount };
+export { clearAccount, loadAccount, loadOnboarded, loadPeople, loadWithdrawals, readStoredPrf, saveOnboarded, savePeople, saveWithdrawals, storeAccount };
 export type { PendingWithdrawal, StoredAccount };
