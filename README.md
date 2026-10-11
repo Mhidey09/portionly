@@ -120,7 +120,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 | Restore people, budgets and sent links on a new phone | Built; checked against the real account's chain history | `app/src/restore.ts` |
 | Contract tests | 26 unit, 36 fuzz (1,024 runs each), 6 invariants (16,384 calls each), 13 mainnet fork tests | [`contracts/test/`](contracts/test) |
 | Payment history and proof page | Live, from the indexer | [`indexer/`](indexer) |
-| Cash out to a bank | Not built | Needs a licensed partner's key, requested |
+| Cash out to a bank | Not built | Ramp Network sells AUSD on Monad to a bank or card. An API key for that was requested on 11 Oct 2026 |
 
 ## Built on
 
@@ -136,7 +136,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 ## Scope and limits
 
 - Android only. The app is a test release distributed as an APK, not a store listing.
-- No cash in or cash out to banks yet. Recipients receive digital dollars.
+- No cash in or cash out to banks yet. Recipients receive digital dollars, shown in their own currency at a reference rate. The planned way out is a licensed off ramp that already supports AUSD on Monad; access was requested on 11 Oct 2026 and nothing is wired until it is granted.
 - Network fees are paid in MON. A payment sent by link brings its own fee and leaves the rest with the recipient; someone paid straight to an address needs a little MON before they can move the money on.
 - A money link works like cash: whoever opens it can collect. The sender can take the money back at any time before that.
 - Local currency amounts use a public reference rate. They are a guide, not a payout quote.

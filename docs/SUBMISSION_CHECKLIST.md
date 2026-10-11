@@ -54,6 +54,6 @@ Requirement: a mobile app letting users send AUSD across borders using Mera pass
 
 ## Not claimed
 
-- Cash out to a bank. A licensed off ramp supports AUSD on Monad, but integrating it needs their API key, which has been requested.
+- Cash out to a bank. A licensed off ramp (Ramp Network) supports AUSD on Monad, but integrating it needs their API key, requested on 11 Oct 2026.
 - Any stock other than the Nasdaq 100 tracker. Other tokenized stocks exist on Monad without usable liquidity.
 - Fixed or guaranteed earnings on savings.
