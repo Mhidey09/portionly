@@ -152,9 +152,13 @@ function PortionSection({ p }: { p: Portionly }) {
   const split: Split = growing ? toSplit(p.allocation) : { home: 100, save: 0, stocks: 0 };
   const amounts = splitAmounts(total, split);
 
+  // A link buys its stocks when the person collects, and falls back to savings if the price has
+  // moved. With a lock that fallback would be frozen too, so a link carries a lock or stocks, never both.
+  const linkCannotLock = p.sendByLink && split.stocks > 0;
+
   useEffect(() => {
-    if (growing && split.save === 0 && p.lockDays > 0) p.setLockDays(0);
-  }, [growing, split.save, p.lockDays]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (growing && (split.save === 0 || linkCannotLock) && p.lockDays > 0) p.setLockDays(0);
+  }, [growing, split.save, linkCannotLock, p.lockDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Surface>
@@ -210,8 +214,8 @@ function PortionSection({ p }: { p: Portionly }) {
           <Divider />
           {split.stocks > 0 && (
             <T variant="small" style={{ marginBottom: 10 }}>
-              {p.sendByLink && p.lockDays > 0
-                ? "If the stock price moves more than 1% when they collect, the stock part joins the locked savings."
+              {p.sendByLink
+                ? "If the stock price moves more than 1% when they collect, that part goes to savings instead, open to use."
                 : p.lockDays > 0
                   ? "If the stock price moves more than 1% while sending, nothing is sent and you can try again."
                   : "If the stock price moves more than 1% while sending, that part goes to savings instead."}
@@ -220,9 +224,10 @@ function PortionSection({ p }: { p: Portionly }) {
           <T variant="label" color={colors.ink}>Keep savings locked for</T>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             {LOCK_DAYS.map((days) => (
-              <Chip key={days} label={lockLabel(days)} active={p.lockDays === days} disabled={split.save === 0 && days > 0} onPress={() => { p.setLockDays(days); p.setReview(null); }} />
+              <Chip key={days} label={lockLabel(days)} active={p.lockDays === days} disabled={(split.save === 0 || linkCannotLock) && days > 0} onPress={() => { p.setLockDays(days); p.setReview(null); }} />
             ))}
           </View>
+          {linkCannotLock && <T variant="small" style={{ marginTop: 10 }}>A link can carry locked savings or stocks, not both. Set stocks to 0% to lock the savings.</T>}
           {p.lockDays > 0 && <T variant="small" style={{ marginTop: 10 }}>Only they can claim the locked part, and only after the date shown on the next step.</T>}
         </>
       )}
@@ -331,7 +336,7 @@ function LinkReviewView({ p }: { p: Portionly }) {
             {review.investAmount > 0n && (
               <T variant="small">
                 The stock part is bought at the live price when they collect.
-                {review.lockDays > 0 ? " If the price moves more than 1% just then, the stock part joins the locked savings." : ""}
+                {" If the price moves more than 1% just then, that part goes to savings instead."}
               </T>
             )}
             <T variant="small">The link carries 0.3 MON so they pay no fee. What is left goes to them.</T>

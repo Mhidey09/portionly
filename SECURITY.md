@@ -24,7 +24,7 @@ Open a [private security advisory](https://github.com/Mhidey09/portionly/securit
 - A link's creation can be made to fail by someone who front runs it with the same link address. No money is lost; the sender tries again with a new link.
 - Someone paid straight to an address, not by link, needs MON before they can move funds.
 - The contracts are verified on Sourcify but have had no professional audit.
-- If the stock price moves more than 1% while a payment is sent, the stock part goes to savings instead. When the savings are locked the app cancels the whole payment, so money meant to stay liquid is never frozen. A locked payment sent by link is the exception: there the stock part joins the locked savings, and the app says so before sending.
+- If the stock price moves more than 1% while a payment is sent, the stock part goes to savings instead. When the savings are locked the app cancels the whole payment, so money meant to stay liquid is never frozen. A payment sent by link buys its stocks when the person collects, and the link contract always falls back to savings, so the app does not let a link carry both a lock and a stock part. The contract itself would accept one; only the app prevents it.
 - Savings sit in a third party vault that puts deposits to work. An instant withdrawal is paid from the cash the vault holds at that moment; the app checks first and offers the free withdrawal, paid after the vault's waiting period.
 - Local currency amounts use a public reference rate. They are a guide, not a payout quote.
 - People, budgets and sent links are found again from the chain on a new phone. Names are kept only on the phone, so restored people come back as Person 1, Person 2. A link made on another install can be taken back but not shared again.

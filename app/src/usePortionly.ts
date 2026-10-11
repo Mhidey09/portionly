@@ -694,6 +694,7 @@ export function usePortionly() {
       if (!current) throw new Error("Balances are unavailable");
       const portions = portionAmounts(total, percentages[0] * 100, percentages[1] * 100, percentages[2] * 100);
       const days = mode === "grow" ? lockDays : 0;
+      if (days > 0 && portions.investAmount > 0n) throw new Error("A link can carry locked savings or stocks, not both. Set stocks to 0% to lock the savings.");
       const fresh = linkFromBytes(await Crypto.getRandomBytesAsync(32));
       // No stock quote here: the price is taken when the person collects.
       const calls = buildCreateLinkCalls({ account: main, link: fresh.address, portions, lockDays: days, ausdBalance: current.ausd, monBalance: current.mon });

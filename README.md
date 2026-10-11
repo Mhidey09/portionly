@@ -139,6 +139,15 @@ Everything arrives in the recipient's own account. From the app they can send it
 | Payment history and proof page | Live, from the indexer | [`indexer/`](indexer) |
 | Cash out to a bank | Not built | Ramp Network sells AUSD on Monad to a bank or card. An API key for that was requested on 11 Oct 2026 |
 
+## Why Monad
+
+The contracts are plain EVM. The product is not portable, for four reasons.
+
+- **One transaction does the whole job.** [The first split](https://monadscan.com/tx/0x3dce58f65bf4d56504f9dbb3607bc52a02298754890e6572a0e6f4dc3fa5bbf9) used about one million gas: two Uniswap v4 swaps, a vault deposit, a lock and a transfer, 20 events. It cost about a tenth of a MON. On a slower or dearer chain a one dollar payment could not afford to be split three ways, and the split is the product.
+- **It settles while the sender is still looking at the screen.** The app waits for the transaction, checks balances and the event, and only then says Sent. The phone measured 1.2 seconds from confirm to arrived for the Agora settlement.
+- **The account is Mera.** A fingerprint is the whole sign up, and the same passkey gives each person their own budget wallet. That is Monad's passkey stack, not a wallet bolted on.
+- **Every part is live here.** AUSD is native on Monad, Agora's Instant Settlement pair runs on Monad testnet, the stock fund trades against AUSD on Monad through Uniswap v4, the savings vault takes AUSD on Monad, and Envio indexes it.
+
 ## Built on
 
 | | Used for |
