@@ -6,15 +6,19 @@ import { Home } from "./src/screens/Home";
 import { Money } from "./src/screens/Money";
 import { Onboarding } from "./src/screens/Onboarding";
 import { Receive } from "./src/screens/Receive";
+import { Settle } from "./src/screens/Settle";
 import { LinkSuccess, Send, SendSuccess } from "./src/screens/Send";
 import { loadOnboarded, saveOnboarded } from "./src/storage";
 import { Splash } from "./src/ui/Splash";
 import { TabBar, type TabKey } from "./src/ui/TabBar";
 import { colors } from "./src/ui/theme";
 import { usePortionly } from "./src/usePortionly";
+import { useSettle } from "./src/useSettle";
 
 function Root() {
   const p = usePortionly();
+  const settle = useSettle(p);
+  const [settleOpen, setSettleOpen] = useState(false);
   const [tab, setTab] = useState<TabKey>("home");
   const [splashDone, setSplashDone] = useState(false);
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
@@ -63,6 +67,16 @@ function Root() {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (settleOpen) {
+        // Never leave while a settlement is being signed or confirmed.
+        if (settle.step === "sending") return true;
+        if (settle.step === "review") settle.goBack();
+        else {
+          settle.reset();
+          setSettleOpen(false);
+        }
+        return true;
+      }
       if (p.linkResult) {
         p.setLinkResult(null);
         go("home");
@@ -84,7 +98,7 @@ function Root() {
       return false;
     });
     return () => sub.remove();
-  }, [tab, p.result, p.review, p.linkResult, p.linkReview, go]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, p.result, p.review, p.linkResult, p.linkReview, go, settleOpen, settle.step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loaded = p.ready && onboarded !== null;
   let body = <View style={{ flex: 1, backgroundColor: colors.sky }} />;
@@ -102,11 +116,12 @@ function Root() {
   } else if (loaded) {
     body = (
       <View style={{ flex: 1 }}>
-        {tab === "home" && <Home p={p} go={go} />}
-        {tab === "send" && <Send p={p} />}
+        {tab === "home" && <Home p={p} go={go} openSettle={() => setSettleOpen(true)} />}
+        {tab === "send" && <Send p={p} openSettle={() => setSettleOpen(true)} />}
         {tab === "receive" && <Receive p={p} />}
         {tab === "money" && <Money p={p} />}
-        {!keyboard && !p.result && !p.linkResult && <TabBar active={tab} onChange={go} />}
+        {!keyboard && !p.result && !p.linkResult && !settleOpen && <TabBar active={tab} onChange={go} />}
+        {settleOpen && <Settle p={p} s={settle} onClose={() => setSettleOpen(false)} />}
         {p.linkResult && (
           <LinkSuccess
             p={p}

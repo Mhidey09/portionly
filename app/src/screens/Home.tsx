@@ -360,7 +360,7 @@ function ClaimSheet({ p, visible, initialText, onClose }: { p: Portionly; visibl
   );
 }
 
-export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
+export function Home({ p, go, openSettle }: { p: Portionly; go: (tab: TabKey) => void; openSettle: () => void }) {
   const [selected, setSelected] = useState<Person | null>(null);
   const [adding, setAdding] = useState(false);
   const [details, setDetails] = useState(false);
@@ -405,6 +405,18 @@ export function Home({ p, go }: { p: Portionly; go: (tab: TabKey) => void }) {
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <T variant="strong">I have a money link</T>
               <T variant="small" color={colors.accent}>Collect</T>
+            </View>
+          </RowButton>
+          <Divider />
+          <RowButton label="Instant settle, on testnet" onPress={() => { p.setError(null); openSettle(); }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <T variant="strong">Instant settle</T>
+                <View style={{ backgroundColor: colors.accentSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
+                  <T variant="label" color={colors.home} style={{ fontSize: 11, lineHeight: 15 }}>Testnet</T>
+                </View>
+              </View>
+              <T variant="small" color={colors.accent}>Open</T>
             </View>
           </RowButton>
         </Surface>

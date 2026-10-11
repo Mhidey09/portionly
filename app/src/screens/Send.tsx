@@ -398,7 +398,7 @@ function SendingView({ p }: { p: Portionly }) {
   );
 }
 
-export function Send({ p }: { p: Portionly }) {
+export function Send({ p, openSettle }: { p: Portionly; openSettle: () => void }) {
   const total = parseTotal(p.totalInput);
   const locked = !p.wallet;
   const sending = p.busy === BUSY_SENDING;
@@ -433,6 +433,9 @@ export function Send({ p }: { p: Portionly }) {
               {p.error && <Notice tone="error" text={p.error} />}
               <Rise index={2}>
                 <Button label="Continue" disabled={!hasWho} onPress={() => { p.setError(null); setStep("amount"); }} />
+              </Rise>
+              <Rise index={3}>
+                <Button variant="ghost" small label="Or settle through Agora on testnet" onPress={openSettle} />
               </Rise>
             </>
           ) : (
