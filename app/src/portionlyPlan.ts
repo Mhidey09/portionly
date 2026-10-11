@@ -151,7 +151,9 @@ function buildPortionlyPlan(input: PortionlyPlanInput): PortionlyPlan {
     growAmount,
     investAmount,
     investMinimumOut,
-    fallbackInvestToGrow: true,
+    // If the stock buy cannot meet its price limit, that part normally goes to savings. With a lock that
+    // would freeze money meant to stay liquid, so a locked plan cancels as a whole instead: nothing moves.
+    fallbackInvestToGrow: unlockAt === 0n,
     unlockAt,
     deadline,
     planId,

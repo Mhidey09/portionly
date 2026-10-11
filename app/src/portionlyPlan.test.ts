@@ -103,4 +103,15 @@ describe("buildPortionlyPlan", () => {
     expect(() => buildPortionlyPlan({ ...input(), lockDays: 7 as never })).toThrow(/lock/i);
     expect(() => buildPortionlyPlan({ ...input(), nowBps: 8_000, growBps: 0, investBps: 2_000, lockDays: 90 })).toThrow(/grow/i);
   });
+
+  it("never lets a failed stock buy end up locked: with a lock the whole payment cancels instead", () => {
+    const open = decodeFunctionData({ abi: portionlySplitterAbi, data: buildPortionlyPlan(input()).calls[1].data }).args[0];
+    expect(open.unlockAt).toBe(0n);
+    expect(open.fallbackInvestToGrow).toBe(true);
+
+    const locked = decodeFunctionData({ abi: portionlySplitterAbi, data: buildPortionlyPlan({ ...input(), lockDays: 90 }).calls[1].data }).args[0];
+    expect(locked.unlockAt).toBeGreaterThan(0n);
+    expect(locked.investAmount).toBeGreaterThan(0n);
+    expect(locked.fallbackInvestToGrow).toBe(false);
+  });
 });

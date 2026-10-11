@@ -58,3 +58,11 @@ describe("plain messages", () => {
     expect(stepLabel("Execute Portionly plan")).toBe("Sending");
   });
 });
+
+describe("stockBuyCost", () => {
+  it("states the pool fee for the stock part in dollars", async () => {
+    const { stockBuyCost } = await import("./format");
+    expect(stockBuyCost(40_000_000n)).toBe("about $0.36");
+    expect(stockBuyCost(200_000n)).toBe("less than $0.01");
+  });
+});

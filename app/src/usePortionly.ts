@@ -5,12 +5,16 @@ import { AppState, Share } from "react-native";
 import { formatUnits, isAddress, parseUnits, type Address, type Hash, type Hex } from "viem";
 import type { PlannedCall } from "./aqqqProofPlan";
 import { buildCreateLinkCalls, linkFromBytes, portionAmounts } from "./linkPay";
-import { claimLink, cancelLink, readLinkPayment, sweepLinkFee, type LinkPayment } from "./linkNetwork";
+import { claimLink, cancelLink, readLinkPayment, readSentLinks, sweepLinkFee, type LinkPayment } from "./linkNetwork";
+import { mergeChainLinks, type OtherInstallLink } from "./linkRestore";
 import { addressOfKey, type StoredLink } from "./linkRecords";
 import { currencyOfLink, linkStatus, parseMoneyLink, parseSendInputs, shareMessage, shareUrl, type SentLink } from "./linkShare";
 import { forgetLink, loadLinks, rememberLink } from "./linkStore";
 import { gasTopUpFor } from "./funding";
-import { addPerson, setPersonCurrency, type Person } from "./people";
+import { addPerson, isPayable, NO_RECIPIENT, setPersonCurrency, setPersonName, setPersonRecipient, type Person } from "./people";
+import { fetchPlanRecipient } from "./planRecipient";
+import { restorePeople, restoreSummary, scanPlan, type FoundPerson } from "./restore";
+import { readWalletActivity } from "./restoreNetwork";
 import { useRates } from "./useRates";
 import { envioUrl, splitterAddress } from "./config";
 import {
@@ -65,6 +69,8 @@ export const BUSY_SENDING = "Sending your payment";
 export const BUSY_LINK = "Making your money link";
 export const BUSY_COLLECT = "Collecting your money";
 export const BUSY_TAKE_BACK = "Taking your money back";
+export const BUSY_RESTORE = "Looking through your account";
+export const BUSY_RESTORE_OPEN = "Opening the restored budgets";
 
 export type LinkReview = {
   key: Hex;
@@ -83,7 +89,9 @@ export type ClipboardClaim = { key: Hex; text: string; total: bigint };
 /** All state and actions for the app. The handlers below are the ones that lived in App.tsx. */
 export function usePortionly() {
   const [wallets, setWallets] = useState<Wallets | null>(null);
-  const [people, setPeople] = useState<Person[]>([]);
+  // Everyone saved, including restored people whose address is not known yet. `people` below is only those who can be paid.
+  const [allPeople, setPeople] = useState<Person[]>([]);
+  const [restoreStatus, setRestoreStatus] = useState<string | null>(null);
   const [peopleBalances, setPeopleBalances] = useState<Record<number, Balances>>({});
   const [activeIndex, setActiveIndex] = useState(0);
   const [newName, setNewName] = useState("");
@@ -118,6 +126,7 @@ export function usePortionly() {
   const [linkReview, setLinkReview] = useState<LinkReview | null>(null);
   const [linkResult, setLinkResult] = useState<LinkResult | null>(null);
   const [sentLinks, setSentLinks] = useState<SentLink[]>([]);
+  const [otherLinks, setOtherLinks] = useState<OtherInstallLink[]>([]);
   const [clipboardClaim, setClipboardClaim] = useState<ClipboardClaim | null>(null);
   const storedLinks = useRef<StoredLink[]>([]);
   const lastPeeked = useRef<string | null>(null);
@@ -143,6 +152,8 @@ export function usePortionly() {
     if (value === null) setLinkReview(null);
   }
 
+  // Anyone without a known address is left out here, so no screen can offer them as someone to pay.
+  const people = useMemo(() => allPeople.filter(isPayable), [allPeople]);
   const activePerson = people.find((person) => person.index === activeIndex) ?? null;
   // Who a payment is for when it is paid from the main wallet. `activePerson` is set only when paying from that person's budget wallet.
   const [payeeIndex, setPayeeIndex] = useState<number | null>(null);
@@ -322,7 +333,9 @@ export function usePortionly() {
     setError(null);
     setReview(null);
     try {
-      const next = kind === "create" ? await createAccount() : kind === "signin" ? await signIn() : await unlockStoredWallet();
+      // Signing in on a phone with nobody saved also looks for people and budgets made earlier.
+      const scan = kind === "signin" && allPeople.length === 0;
+      const next = kind === "create" ? await createAccount() : kind === "signin" ? await signIn(scan) : await unlockStoredWallet();
       if (!next) throw new Error("No stored Mera account was found");
       endWallets(wallets);
       setWallets(next);
@@ -330,7 +343,11 @@ export function usePortionly() {
       const nextActive = next.byIndex.has(activeIndex) ? activeIndex : 0;
       setActiveIndex(nextActive);
       await refresh(next.byIndex.get(nextActive)?.address ?? next.main.address);
-      await refreshPeople(next);
+      // Sign in may have cleared the saved people (a different passkey is a different account), so read them back.
+      const saved = kind === "signin" ? await loadPeople() : allPeople;
+      if (kind === "signin") setPeople(saved);
+      await refreshPeople(next, saved.filter(isPayable));
+      if (kind === "signin" && next.candidates) await restoreFrom(next, saved);
     } catch (caught) {
       setError(describeError(caught));
     } finally {
@@ -338,7 +355,92 @@ export function usePortionly() {
     }
   }
 
-  async function refreshPeople(source: Wallets | null = wallets, list: Person[] = people): Promise<void> {
+  /**
+   * Looks through the budget wallets of this account for ones with money or history, saves them as
+   * people, and opens signing for them. `source` must carry the scanned addresses.
+   */
+  async function restoreFrom(source: Wallets, existing: Person[] = allPeople): Promise<void> {
+    const candidates = source.candidates;
+    if (!candidates) return;
+    setBusy(BUSY_RESTORE);
+    setRestoreStatus(BUSY_RESTORE);
+    try {
+      const byIndex = new Map(candidates.map((c) => [c.index, c.address] as const));
+      const found = await scanPlan(async (index) => {
+        const target = byIndex.get(index);
+        if (!target) throw new Error("Scan reached an index without an address");
+        return readWalletActivity(target);
+      });
+      const recipients = await Promise.all(found.map((wallet) => fetchPlanRecipient(envioUrl, wallet.address)));
+      const foundPeople: FoundPerson[] = found.map((wallet, i) => ({ index: wallet.index, recipient: recipients[i] }));
+      const { people: next, added } = restorePeople(existing, foundPeople);
+      if (added.length > 0) {
+        await savePeople(next);
+        setPeople(next);
+        // The new wallets need signing sessions, which needs one more passkey unlock, like adding a person does.
+        setBusy(BUSY_RESTORE_OPEN);
+        const reopened = await unlockStoredWallet();
+        if (reopened) {
+          endWallets(source);
+          setWallets(reopened);
+          await refreshPeople(reopened, next);
+        }
+      }
+      setRestoreStatus(restoreSummary(added));
+    } catch (caught) {
+      setRestoreStatus(null);
+      setError(describeError(caught));
+    }
+  }
+
+  /** The "Find my people and budgets" row: one unlock to learn the addresses, then the same steps as after sign in. */
+  async function findPeople(): Promise<void> {
+    setBusy(BUSY_RESTORE);
+    setError(null);
+    setRestoreStatus(BUSY_RESTORE);
+    try {
+      const scanned = await unlockStoredWallet(true);
+      if (!scanned) throw new Error("No stored Mera account was found");
+      endWallets(wallets);
+      setWallets(scanned);
+      setKnownAddress(scanned.main.address);
+      await restoreFrom(scanned);
+    } catch (caught) {
+      setRestoreStatus(null);
+      setError(describeError(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** Gives a restored person their address, from a pasted address or pay link. */
+  async function savePersonAddress(person: Person, text: string): Promise<boolean> {
+    setError(null);
+    try {
+      const next = setPersonRecipient(allPeople, person.index, parseRecipientInput(text));
+      await savePeople(next);
+      setPeople(next);
+      return true;
+    } catch (caught) {
+      setError(describeError(caught));
+      return false;
+    }
+  }
+
+  async function renamePerson(person: Person, name: string): Promise<boolean> {
+    setError(null);
+    try {
+      const next = setPersonName(allPeople, person.index, name);
+      await savePeople(next);
+      setPeople(next);
+      return true;
+    } catch (caught) {
+      setError(describeError(caught));
+      return false;
+    }
+  }
+
+  async function refreshPeople(source: Wallets | null = wallets, list: Person[] = allPeople): Promise<void> {
     if (!source) return;
     const entries = await Promise.all(
       list.map(async (person) => {
@@ -362,6 +464,7 @@ export function usePortionly() {
 
   /** The everyday path: pay a saved person straight from the main wallet. */
   function sendToPerson(person: Person): void {
+    if (!isPayable(person)) return;
     selectAccount(0, person.recipient);
     setPayeeIndex(person.index);
   }
@@ -401,7 +504,7 @@ export function usePortionly() {
     setBusy("Adding person");
     let added = false;
     try {
-      const next = addPerson(people, newName, parseRecipientInput(newRecipient), newCurrency);
+      const next = addPerson(allPeople, newName, parseRecipientInput(newRecipient), newCurrency);
       await savePeople(next);
       setPeople(next);
       setNewName("");
@@ -429,7 +532,7 @@ export function usePortionly() {
   /** Changes (or clears) the currency shown for a saved person. */
   async function changePersonCurrency(person: Person, currency: string | undefined): Promise<void> {
     try {
-      const next = setPersonCurrency(people, person.index, currency);
+      const next = setPersonCurrency(allPeople, person.index, currency);
       await savePeople(next);
       setPeople(next);
     } catch (caught) {
@@ -470,7 +573,7 @@ export function usePortionly() {
       if (!senderAddress) throw new Error("Unlock your account first");
       if (activePerson && recipient.toLowerCase() !== activePerson.recipient.toLowerCase()) throw new Error("Recipient is fixed for this person");
       if (payee && recipient.toLowerCase() !== payee.recipient.toLowerCase()) throw new Error("Recipient is fixed for this person");
-      if (!isAddress(recipient)) throw new Error("Enter the recipient's address");
+      if (!isAddress(recipient) || recipient.toLowerCase() === NO_RECIPIENT) throw new Error("Enter the recipient's address");
       if (senderAddress && recipient.toLowerCase() === senderAddress.toLowerCase()) throw new Error("That's your own account. Enter the address of the person you're paying.");
       const total = parseUnits(totalInput.trim(), 6);
       if (total <= 0n) throw new Error("Total must be greater than zero");
@@ -559,6 +662,14 @@ export function usePortionly() {
       }),
     );
     setSentLinks(merged);
+    // Links this account made that this phone has no key for (a reinstall, another phone). A failed read keeps what is shown.
+    if (address) {
+      try {
+        setOtherLinks(mergeChainLinks(list, await readSentLinks(address)));
+      } catch {
+        // Offline: the saved links above are still right.
+      }
+    }
   }
 
   useEffect(() => {
@@ -568,7 +679,7 @@ export function usePortionly() {
         return refreshSentLinks(list);
       })
       .catch(() => undefined);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [address]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function makeLinkReview(): Promise<void> {
     setBusy("Getting ready");
@@ -646,7 +757,7 @@ export function usePortionly() {
     }
   }
 
-  async function takeBack(link: SentLink): Promise<void> {
+  async function takeBack(link: SentLink | OtherInstallLink): Promise<void> {
     if (!wallets) {
       setError("Unlock your account first");
       return;
@@ -657,7 +768,8 @@ export function usePortionly() {
     try {
       await cancelLink(wallets.main, link.address, setProgress);
       // The link no longer needs its fee balance; bring that home too. The refund above stands either way.
-      await sweepLinkFee(link.key, wallets.main.address).catch(() => undefined);
+      // A link made on another install has no key here, so only the payment comes back.
+      if ("key" in link) await sweepLinkFee(link.key, wallets.main.address).catch(() => undefined);
       setMoneyNote("The money is back in your account.");
       await refresh(wallets.main.address).catch(() => undefined);
     } catch (caught) {
@@ -772,7 +884,7 @@ export function usePortionly() {
   return {
     // state
     wallets, wallet, address, myLink, ready, busy, error, refreshing,
-    people, peopleBalances, activeIndex, activePerson, payee, forPerson, sendToPerson, senderAddress,
+    people, allPeople, restoreStatus, otherLinks, peopleBalances, activeIndex, activePerson, payee, forPerson, sendToPerson, senderAddress,
     balances, shownBalances, savingsValue, locks, locksError, withdrawals, moneyNote, sellReview,
     recipient, totalInput, mode, lockDays, allocation, plannedAllocation, allocationTotal,
     review, progress, result, newName, newRecipient, topUpInputs,
@@ -783,7 +895,7 @@ export function usePortionly() {
     setNewName, setNewRecipient, setTopUpInputs, setMoneyNote, setNewCurrency, setOneOffCurrency,
     // actions
     connect, claim, withdrawSavings, collectWithdrawal, quoteSell, sellStocks, manualRefresh,
-    selectAccount, normalizeTyped, pasteRecipient, shareLink, submitPerson, changePersonCurrency, topUp, makeReview, execute,
+    selectAccount, normalizeTyped, pasteRecipient, shareLink, submitPerson, changePersonCurrency, findPeople, savePersonAddress, renamePerson, topUp, makeReview, execute,
     setSendByLink, setLinkResult, makeLinkReview, executeLink, takeBack, removeSentLink, shareSentLink, shareNewLink,
     checkClaim, collect, dismissClipboardClaim,
   };

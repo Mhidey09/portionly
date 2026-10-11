@@ -7,7 +7,8 @@ const config: ExpoConfig = {
   name: "Portionly",
   slug: "portionly",
   owner: "xtrabees-team",
-  version: "0.3.0",
+  version: "0.4.0",
+  scheme: "portionly",
   icon: "./assets/icon.png",
   orientation: "portrait",
   runtimeVersion: { policy: "appVersion" },
@@ -15,6 +16,15 @@ const config: ExpoConfig = {
   android: {
     package: "com.portionly.app",
     adaptiveIcon: { foregroundImage: "./assets/adaptive-foreground.png", backgroundColor: "#ffffff" },
+    // A money link opens the app straight on the collect screen. The site's Digital Asset Links file lets Android verify this.
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        data: [{ scheme: "https", host: rpId, pathPrefix: "/claim" }],
+        category: ["BROWSABLE", "DEFAULT"],
+      },
+    ],
     versionCode: 1,
   },
   plugins: [

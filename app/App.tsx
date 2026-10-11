@@ -1,6 +1,6 @@
 import { useFonts } from "expo-font";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BackHandler, Keyboard, StatusBar, View } from "react-native";
+import { BackHandler, Keyboard, Linking, StatusBar, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Home } from "./src/screens/Home";
 import { Money } from "./src/screens/Money";
@@ -28,6 +28,20 @@ function Root() {
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [keyboard, setKeyboard] = useState(false);
   const finishSplash = useCallback(() => setSplashDone(true), []);
+
+  // A money link that opened the app (tapped in a chat, or the site's Open in the app button).
+  const [incomingLink, setIncomingLink] = useState<string | null>(null);
+  useEffect(() => {
+    const take = (url: string | null) => {
+      if (url && /claim\/?(\?[^#]*)?#(0x)?[0-9a-fA-F]{64}/.test(url)) {
+        setIncomingLink(url);
+        setTab("home");
+      }
+    };
+    void Linking.getInitialURL().then(take).catch(() => undefined);
+    const sub = Linking.addEventListener("url", (event) => take(event.url));
+    return () => sub.remove();
+  }, []);
 
   // Pick up a newer version of the app as it opens, before anyone starts a payment.
   useEffect(() => {
@@ -125,7 +139,7 @@ function Root() {
   } else if (loaded) {
     body = (
       <View style={{ flex: 1 }}>
-        {tab === "home" && <Home p={p} go={go} openSettle={() => setSettleOpen(true)} />}
+        {tab === "home" && <Home p={p} go={go} openSettle={() => setSettleOpen(true)} incomingLink={incomingLink} onLinkTaken={() => setIncomingLink(null)} />}
         {tab === "send" && <Send p={p} openSettle={() => setSettleOpen(true)} />}
         {tab === "receive" && <Receive p={p} />}
         {tab === "money" && <Money p={p} />}

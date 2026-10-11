@@ -43,3 +43,9 @@ export function initialOf(name: string): string {
   const first = name.trim().charAt(0);
   return first === "" ? "?" : first.toUpperCase();
 }
+
+/** What buying the stock part costs in pool fees: 0.9% on the stock pool plus 0.005% on the dollar pool. */
+export function stockBuyCost(investMicro: bigint): string {
+  const cost = (investMicro * 905n) / 100_000n;
+  return cost < 10_000n ? "less than $0.01" : `about ${formatUsd(cost)}`;
+}

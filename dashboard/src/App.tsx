@@ -81,6 +81,7 @@ export default function App() {
 
       <footer className="foot">
         <span>Portionly never holds your money.<span className="foot-more"> It moves straight between your accounts on Monad.</span></span>
+        <a className="foot-x" href="https://x.com/portionly" target="_blank" rel="noreferrer">@portionly on X</a>
         <nav aria-label="Footer">
           <a href="/">Home</a>
           <a href="/#received">I was sent money</a>

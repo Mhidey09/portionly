@@ -1,6 +1,6 @@
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { describe, expect, it } from "vitest";
-import { deriveEvmPrivateKey } from "./hd";
+import { deriveEvmPrivateKey, deriveEvmPrivateKeys } from "./hd";
 
 const prf = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
 const hex = (b: Uint8Array) => bytesToHex(b);
@@ -21,5 +21,10 @@ describe("deriveEvmPrivateKey", () => {
   });
   it("accepts the maximum index", () => {
     expect(deriveEvmPrivateKey(prf, 2 ** 31 - 1)).toHaveLength(32);
+  });
+  it("derives a range in one pass with the same keys as one at a time", () => {
+    const keys = deriveEvmPrivateKeys(prf, [0, 1, 7]);
+    expect(keys.map(hex)).toEqual([0, 1, 7].map((i) => hex(deriveEvmPrivateKey(prf, i))));
+    expect(() => deriveEvmPrivateKeys(prf, [1, -1])).toThrow();
   });
 });

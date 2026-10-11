@@ -68,7 +68,8 @@ test("an open money link shows the total, the three portions and the three steps
   await expect(page.getByText("locked for 3 months from the day you collect")).toBeVisible();
   await expect(page.getByText("Bought at the live price when you collect.")).toBeVisible();
   await expect(page.locator(".claim-steps li")).toHaveCount(3);
-  await expect(page.getByText("I have a money link")).toBeVisible();
+  // One tap hands the same link, key included, to the app on this device.
+  await expect(page.getByTestId("open-app")).toHaveAttribute("href", `portionly://claim#${KEY}`);
   await expect(page.getByRole("button", { name: "Copy my money link" })).toBeVisible();
   // The key stays in the browser: no request carried it.
   expect(seen.length).toBeGreaterThan(0);

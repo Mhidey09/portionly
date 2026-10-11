@@ -6,7 +6,7 @@ import { versionLabel } from "../appUpdate";
 import { lockPhrase, type SentLink } from "../linkShare";
 import type { Person } from "../people";
 import { formatBalances } from "../network";
-import { BUSY_COLLECT, BUSY_TAKE_BACK, type ClaimCheck, type Portionly } from "../usePortionly";
+import { BUSY_COLLECT, BUSY_RESTORE, BUSY_RESTORE_OPEN, BUSY_TAKE_BACK, type ClaimCheck, type Portionly } from "../usePortionly";
 import { Button, ButtonRow } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { CurrencyPicker, LocalLine, RateNote, showsLocal } from "../ui/Local";
@@ -46,12 +46,22 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
   if (person && person !== last) setLast(person);
   // Always read the saved person fresh, so a change (like their currency) shows the moment it is made.
   const picked = person ?? last;
-  const shown = picked ? p.people.find((entry) => entry.index === picked.index) ?? picked : null;
+  const shown = picked ? p.allPeople.find((entry) => entry.index === picked.index) ?? picked : null;
   const balances = shown ? p.peopleBalances[shown.index] : undefined;
   const topUpBusy = p.busy !== null && p.busy.startsWith("Topping up");
   const unlocked = p.wallets !== null;
   const hasBudget = balances !== undefined && balances.ausd > 0n;
   const [budgetOpen, setBudgetOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameFor, setNameFor] = useState<number | null>(null);
+  const [addressDraft, setAddressDraft] = useState("");
+  // Start the draft over whenever a different person is shown.
+  if (shown && nameFor !== shown.index) {
+    setNameFor(shown.index);
+    setNameDraft(shown.name);
+    setAddressDraft("");
+  }
+  const needsAddress = shown?.needsRecipient === true;
 
   return (
     <Sheet visible={person !== null} onClose={onClose} label={shown ? shown.name : "Person"}>
@@ -68,18 +78,46 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
             <T variant="label">Their currency</T>
             <CurrencyPicker label={`Currency for ${shown.name}`} value={shown.currency} onChange={(code) => void p.changePersonCurrency(shown, code)} />
           </View>
+          <Field
+            label="Name"
+            maxLength={32}
+            autoCapitalize="words"
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            right={
+              nameDraft.trim() !== shown.name && nameDraft.trim() !== "" ? (
+                <Button small variant="ghost" label="Save" disabled={p.busy !== null} onPress={() => void p.renamePerson(shown, nameDraft)} />
+              ) : undefined
+            }
+          />
+          {needsAddress && (
+            <View style={{ gap: 8 }}>
+              <T variant="small">We found money set aside for this person, but not who it is for. Add their address so you can send to them.</T>
+              <Field
+                label="Their address or pay link"
+                autoCapitalize="none"
+                autoCorrect={false}
+                value={addressDraft}
+                onChangeText={(value) => setAddressDraft(p.normalizeTyped(value))}
+                right={<Button small variant="ghost" label="Paste" onPress={() => void Clipboard.getStringAsync().then((text) => setAddressDraft(p.normalizeTyped(text)))} />}
+              />
+              <Button label="Save address" disabled={p.busy !== null || addressDraft.trim() === ""} onPress={() => void p.savePersonAddress(shown, addressDraft).then((saved) => { if (saved) setAddressDraft(""); })} />
+            </View>
+          )}
           {p.error && <Notice tone="error" text={p.error} />}
           {unlocked ? (
             <>
-              <Button
-                label={`Send to ${shown.name}`}
-                disabled={p.busy !== null}
-                onPress={() => {
-                  p.sendToPerson(shown);
-                  onClose();
-                  go("send");
-                }}
-              />
+              {!needsAddress && (
+                <Button
+                  label={`Send to ${shown.name}`}
+                  disabled={p.busy !== null}
+                  onPress={() => {
+                    p.sendToPerson(shown);
+                    onClose();
+                    go("send");
+                  }}
+                />
+              )}
               <Divider />
               <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(!budgetOpen)} hitSlop={8} style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <T variant="strong">Keep a budget for {shown.name}</T>
@@ -102,7 +140,7 @@ function PersonSheet({ p, person, onClose, go }: { p: Portionly; person: Person 
                     onChangeText={(value) => p.setTopUpInputs({ ...p.topUpInputs, [shown.index]: cleanAmountInput(value) })}
                   />
                   <Button variant="secondary" label="Set aside from my main wallet" loading={topUpBusy} disabled={p.busy !== null || (p.topUpInputs[shown.index] ?? "") === ""} onPress={() => void p.topUp(shown)} />
-                  {hasBudget && (
+                  {hasBudget && !needsAddress && (
                     <Button
                       variant="secondary"
                       label="Send from this budget"
@@ -186,6 +224,16 @@ function DetailsSheet({ p, visible, onClose }: { p: Portionly; visible: boolean;
         }}
       />
       <Divider />
+      <RowButton label="Find my people and budgets" disabled={p.busy !== null || !p.address} onPress={() => void p.findPeople()}>
+        <View style={{ gap: 2 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <T variant="strong">Find my people and budgets</T>
+            <T variant="small" color={colors.accent}>{p.busy === BUSY_RESTORE || p.busy === BUSY_RESTORE_OPEN ? "Working" : "Find"}</T>
+          </View>
+          <T variant="small">{p.restoreStatus ?? "Use this after a reinstall or on a new phone. It asks for your fingerprint."}</T>
+        </View>
+      </RowButton>
+      <Divider />
       <T variant="small">Signing in with a different passkey replaces the account shown on this phone.</T>
       <Button
         variant="secondary"
@@ -208,7 +256,7 @@ const STATUS_TEXT: Record<SentLink["status"], string> = {
 };
 
 function LinksSent({ p }: { p: Portionly }) {
-  if (p.sentLinks.length === 0) return null;
+  if (p.sentLinks.length === 0 && p.otherLinks.length === 0) return null;
   const taking = p.busy === BUSY_TAKE_BACK;
   return (
     <Surface>
@@ -239,6 +287,25 @@ function LinksSent({ p }: { p: Portionly }) {
                 <Button small variant="ghost" label="Remove from list" disabled={p.busy !== null} onPress={() => void p.removeSentLink(link)} />
               </View>
             )}
+          </View>
+        );
+      })}
+      {p.otherLinks.map((link) => {
+        const total = BigInt(link.total);
+        return (
+          <View key={link.address}>
+            <Divider />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              <View style={{ flex: 1 }}>
+                <T variant="strong">{formatUsd(total)}</T>
+                <T variant="small">{new Date(link.createdAt).toDateString()}</T>
+                <T variant="small" color={colors.accent}>{STATUS_TEXT.waiting}</T>
+              </View>
+            </View>
+            <T variant="small" style={{ marginTop: 6 }}>Made on an earlier install of this account. This phone cannot share the link again, but you can take the money back.</T>
+            <View style={{ flexDirection: "row", marginTop: 10 }}>
+              <Button small variant="secondary" label="Take it back" loading={taking} disabled={p.busy !== null} onPress={() => void (p.wallets ? p.takeBack(link) : p.connect("unlock"))} style={{ flex: 1 }} />
+            </View>
           </View>
         );
       })}
@@ -363,11 +430,18 @@ function ClaimSheet({ p, visible, initialText, onClose }: { p: Portionly; visibl
   );
 }
 
-export function Home({ p, go, openSettle }: { p: Portionly; go: (tab: TabKey) => void; openSettle: () => void }) {
+export function Home({ p, go, openSettle, incomingLink = null, onLinkTaken }: { p: Portionly; go: (tab: TabKey) => void; openSettle: () => void; incomingLink?: string | null; onLinkTaken?: () => void }) {
   const [selected, setSelected] = useState<Person | null>(null);
   const [adding, setAdding] = useState(false);
   const [details, setDetails] = useState(false);
   const [claimText, setClaimText] = useState<string | null>(null);
+  // Opened from a money link: go straight to the collect sheet with it filled in.
+  useEffect(() => {
+    if (incomingLink) {
+      setClaimText(incomingLink);
+      onLinkTaken?.();
+    }
+  }, [incomingLink]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = p.shownBalances ? Number(p.shownBalances.ausd) : null;
 
   return (
@@ -425,7 +499,7 @@ export function Home({ p, go, openSettle }: { p: Portionly; go: (tab: TabKey) =>
         </Surface>
       </Rise>
 
-      {p.sentLinks.length > 0 && (
+      {(p.sentLinks.length > 0 || p.otherLinks.length > 0) && (
         <Rise index={3}>
           <LinksSent p={p} />
         </Rise>
@@ -437,10 +511,10 @@ export function Home({ p, go, openSettle }: { p: Portionly; go: (tab: TabKey) =>
             <T variant="h2">People</T>
             <Button small variant="ghost" label="Add a person" onPress={() => { p.setError(null); setAdding(true); }} />
           </View>
-          {p.people.length === 0 ? (
+          {p.allPeople.length === 0 ? (
             <T variant="small" style={{ marginTop: 6 }}>Nobody here yet. Add the people you send money to, like James or Mum.</T>
           ) : (
-            p.people.map((person, i) => {
+            p.allPeople.map((person, i) => {
               const balances = p.peopleBalances[person.index];
               return (
                 <View key={person.index}>
@@ -451,7 +525,7 @@ export function Home({ p, go, openSettle }: { p: Portionly; go: (tab: TabKey) =>
                         <Avatar name={person.name} index={person.index} />
                         <View style={{ flex: 1 }}>
                           <T variant="strong">{person.name}</T>
-                          <T variant="small">{balances && balances.ausd > 0n ? "Budget set aside" : "Tap to send"}</T>
+                          <T variant="small">{person.needsRecipient ? "Add their address" : balances && balances.ausd > 0n ? "Budget set aside" : "Tap to send"}</T>
                         </View>
                         {balances && balances.ausd > 0n && (
                           <View style={{ alignItems: "flex-end" }}>
@@ -466,7 +540,7 @@ export function Home({ p, go, openSettle }: { p: Portionly; go: (tab: TabKey) =>
               );
             })
           )}
-          {p.people.some((person) => p.peopleBalances[person.index] && showsLocal(person.currency, p.rates)) && (
+          {p.allPeople.some((person) => p.peopleBalances[person.index] && showsLocal(person.currency, p.rates)) && (
             <View style={{ marginTop: 12 }}>
               <RateNote />
             </View>

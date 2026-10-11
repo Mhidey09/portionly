@@ -48,6 +48,11 @@ export function lockText(days: number): string {
   return `locked for ${months} ${months === 1 ? "month" : "months"} from the day you collect`;
 }
 
+/** The same link in the app's own scheme. The key stays in the part after #, on this device. */
+export function appLink(search = window.location.search, hash = window.location.hash): string {
+  return `portionly://claim${search}${hash}`;
+}
+
 type State = { kind: "loading" } | { kind: "bad-link" } | { kind: "never-funded" } | { kind: "error"; message: string } | { kind: "ready"; view: ClaimView };
 
 async function load(key: Hex): Promise<State> {
@@ -201,10 +206,11 @@ export default function Claim() {
         <ol className="claim-steps">
           <li>Get the Portionly app for Android.</li>
           <li>Open it and create your account with your fingerprint. There is nothing to write down.</li>
-          <li>Tap <b>I have a money link</b> and paste this link.</li>
+          <li>Come back to this page and tap <b>Open in the app</b>. Your money is one tap from there.</li>
         </ol>
         <div className="cta">
-          {apkUrl && <a className="button solid" href={apkUrl} rel="noreferrer">Get the Android app</a>}
+          <a className="button solid" href={appLink()} data-testid="open-app">Open in the app</a>
+          {apkUrl && <a className="button line" href={apkUrl} rel="noreferrer">Get the Android app</a>}
           <button className="button line" onClick={() => void copy()}>{copied ? "Copied" : "Copy my money link"}</button>
         </div>
         <p className="quiet">This link works like cash: whoever opens it can collect the money. Keep it to yourself. No fee coin is needed, the link pays its own way.</p>

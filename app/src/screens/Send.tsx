@@ -24,7 +24,7 @@ import { Segmented } from "../ui/Segmented";
 import { SlipBar } from "../ui/SlipBar";
 import { Divider, Surface } from "../ui/Surface";
 import { T } from "../ui/Type";
-import { cleanAmountInput, formatUsd, lockLabel, shortAddress, trimDecimals } from "../ui/format";
+import { cleanAmountInput, formatUsd, lockLabel, shortAddress, stockBuyCost, trimDecimals } from "../ui/format";
 import { stepLabel } from "../ui/plain";
 import { amountsToSplit, splitAmounts, toAllocation, toSplit, type Split } from "../ui/split";
 import { colors, fonts, portionColors, radius, surfaceShadow } from "../ui/theme";
@@ -209,7 +209,13 @@ function PortionSection({ p }: { p: Portionly }) {
           <Row name="US tech stocks" note="Apple, Nvidia, Amazon and more" amount={dollars(amounts.stocks)} color={portionColors.stocks.bg} fg={portionColors.stocks.fg} off={split.stocks === 0} micro={amounts.stocks} code={p.sendCurrency} rates={p.rates} />
           <Divider />
           {split.stocks > 0 && (
-            <T variant="small" style={{ marginBottom: 10 }}>If the stock price moves more than 1% while sending, that part goes to savings instead.</T>
+            <T variant="small" style={{ marginBottom: 10 }}>
+              {p.sendByLink && p.lockDays > 0
+                ? "If the stock price moves more than 1% when they collect, the stock part joins the locked savings."
+                : p.lockDays > 0
+                  ? "If the stock price moves more than 1% while sending, nothing is sent and you can try again."
+                  : "If the stock price moves more than 1% while sending, that part goes to savings instead."}
+            </T>
           )}
           <T variant="label" color={colors.ink}>Keep savings locked for</T>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
@@ -264,6 +270,9 @@ function ReviewView({ p }: { p: Portionly }) {
                 code={p.sendCurrency}
                 rates={p.rates}
               />
+              <T variant="small" style={{ marginTop: 8 }}>
+                Buying the stock part costs {stockBuyCost(review.investAmount)} in pool fees, and about the same again to sell. It suits money meant to stay a while.
+              </T>
             </>
           )}
           <Divider />
@@ -319,7 +328,12 @@ function LinkReviewView({ p }: { p: Portionly }) {
           />
           <Divider />
           <View style={{ gap: 8 }}>
-            {review.investAmount > 0n && <T variant="small">The stock part is bought at the live price when they collect.</T>}
+            {review.investAmount > 0n && (
+              <T variant="small">
+                The stock part is bought at the live price when they collect.
+                {review.lockDays > 0 ? " If the price moves more than 1% just then, the stock part joins the locked savings." : ""}
+              </T>
+            )}
             <T variant="small">The link carries 0.3 MON so they pay no fee. What is left goes to them.</T>
             <T variant="small">Three fingerprint checks.</T>
           </View>
