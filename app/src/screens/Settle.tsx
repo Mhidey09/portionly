@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Animated, Linking, TextInput, View } from "react-native";
+import { Animated, AppState, Linking, TextInput, View } from "react-native";
 import { formatUnits } from "viem";
 import { TESTNET_EXPLORER_TX, type SettledTransfer } from "../agora";
 import type { Settle as SettleState } from "../useSettle";
@@ -56,32 +56,39 @@ function FormView({ p, s }: { p: Portionly; s: SettleState }) {
       </Rise>
 
       <Rise index={2}>
-        <Surface>
-          <T variant="label">Test dollars</T>
+        <Surface style={{ gap: 6 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <T variant="label">Test dollars</T>
+            <Button small variant="ghost" label={s.refreshing ? "Updating" : "Refresh"} disabled={s.refreshing} onPress={() => void s.pull()} />
+          </View>
           {s.balances ? <Money value={dollars(s.balances.ausd)} variant="display" style={{ fontSize: 44, lineHeight: 50 }} /> : <T variant="display" style={{ fontSize: 44, lineHeight: 50 }}>...</T>}
           <T variant="small">{s.balances ? `Test fee balance: ${fee(s.balances.mon)} MON` : "Reading your balances"}</T>
-          {s.lowDollars && (
-            <View style={{ marginTop: 14 }}>
-              <Button small variant="secondary" label="Get test dollars" loading={s.busy === "Getting test dollars"} disabled={locked || s.busy !== null} onPress={() => void s.getTestDollars()} />
+
+          {s.noMon && p.address && (
+            <View style={{ marginTop: 12, gap: 10 }}>
+              <Divider />
+              <T variant="strong">First, get free test MON</T>
+              <T variant="small">It pays the network fee. Copy your address, paste it on the faucet page, then come back. This page updates by itself.</T>
+              <T variant="small" selectable color={colors.ink}>{p.address}</T>
+              <Button small variant="secondary" label={s.copied ? "Copied" : "Copy my address"} onPress={() => void s.copyAddress()} />
+              <Button small label="Open the faucet" onPress={() => void s.openMonFaucet()} />
             </View>
           )}
+          {!s.noMon && s.lowDollars && (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              <Divider />
+              <T variant="small">Test dollars are free from Agora's faucet, 10,000 at a time.</T>
+              <Button label="Get test dollars" loading={s.busy === "Getting test dollars"} disabled={locked || s.busy !== null} onPress={() => void s.getTestDollars()} />
+              {locked && <T variant="small">Unlock with your fingerprint first.</T>}
+            </View>
+          )}
+          {!s.noMon && s.lowMon && <T variant="small" style={{ marginTop: 8 }}>Your test fee balance is getting low. The faucet at faucet.monad.xyz gives more.</T>}
+          {s.note && <T variant="small" color={colors.home} style={{ marginTop: 8 }}>{s.note}</T>}
           {pool && pool.paused && <T variant="small" style={{ marginTop: 10 }}>Instant settlement is paused right now.</T>}
         </Surface>
       </Rise>
 
-      {s.noMon && (
-        <Rise index={3}>
-          <Notice
-            text="You need a little test MON to pay network fees. It is free. Tap below and we copy your address, so you can paste it on the faucet page."
-            action={<Button small label="Get test MON" onPress={() => void s.openMonFaucet()} />}
-          />
-        </Rise>
-      )}
-      {!s.noMon && s.lowMon && (
-        <Rise index={3}>
-          <Notice text="Your test fee balance is getting low. Top it up before you settle." action={<Button small variant="secondary" label="Get test MON" onPress={() => void s.openMonFaucet()} />} />
-        </Rise>
-      )}
+      {s.error && <Notice tone="error" text={s.error} />}
 
       <Rise index={3}>
         <Surface>
@@ -138,7 +145,6 @@ function FormView({ p, s }: { p: Portionly; s: SettleState }) {
         </Surface>
       </Rise>
 
-      {s.error && <Notice tone="error" text={s.error} />}
       <Rise index={5}>
         {locked ? (
           <Button label="Unlock with your fingerprint" loading={p.busy !== null} onPress={() => void p.connect("unlock")} />
@@ -320,9 +326,24 @@ function DoneView({ p, s, onClose }: { p: Portionly; s: SettleState; onClose: ()
 /** Full screen Instant settle flow on Monad testnet, opened from Home or the Send screen. */
 export function Settle({ p, s, onClose }: { p: Portionly; s: SettleState; onClose: () => void }) {
   const sending = s.step === "sending";
+  // Keep the test balances current while this screen is open: on a short timer, and the moment the
+  // app comes back from the faucet page, so nobody has to leave and return to see money arrive.
+  const refresh = s.refresh;
+  useEffect(() => {
+    if (s.step !== "form") return;
+    void refresh().catch(() => undefined);
+    const timer = setInterval(() => void refresh().catch(() => undefined), 4000);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refresh().catch(() => undefined);
+    });
+    return () => {
+      clearInterval(timer);
+      sub.remove();
+    };
+  }, [s.step, refresh]);
   return (
     <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 40, backgroundColor: colors.sky }}>
-      <Screen tabBar={false} paddingTop={20} resetKey={s.step}>
+      <Screen tabBar={false} paddingTop={20} resetKey={s.step} refreshing={s.refreshing} onRefresh={s.step === "form" ? () => void s.pull() : undefined}>
         {s.step !== "done" && (
           <View style={{ flexDirection: "row", justifyContent: "flex-start" }}>
             <Button small variant="ghost" label="Close" disabled={sending || s.busy !== null} onPress={onClose} />

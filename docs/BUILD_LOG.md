@@ -9,3 +9,4 @@
 | 2026-10-09 | First plan signed on a physical Android phone with a Mera passkey: 1 AUSD split Now 0.5, Grow 0.3, Invest 0.2 (tx 0x3dce58f6...). |
 | 2026-10-10 | Recipient actions proven on mainnet with the app's own calldata: sell aQQQ back to AUSD, and withdraw savings instantly. Standard withdrawal proven on a mainnet fork. |
 | 2026-10-10 | Send to a link: PortionlyLink deployed; a link payment was created, claimed by its own key and delivered as three portions on mainnet, with the link paying the fee. |
+| 2026-10-11 | A transfer settled through Agora Instant Settlement on Monad testnet using the app's code and Mera signing. Contracts verified on Sourcify. |

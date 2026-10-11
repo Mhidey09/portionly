@@ -9,6 +9,7 @@ const RULES: [RegExp, string][] = [
   [/0\.12 MON|too little MON/i, "Your fee balance is too low. Top up your fee balance and try again."],
   [/stale|expired/i, "The price went out of date. Go back and review again to get a fresh price."],
   [/Post-check failed/i, "We could not confirm that everything arrived as planned. Check your balances before you try again."],
+  [/Missing or invalid parameters|insufficient (funds|balance)/i, "The network refused that. Check that you have enough fee balance, then try again."],
   [/reverted/i, "The network did not accept that step. Check your balances, then try again."],
   [/Indexer/i, "We could not load your locked savings right now. Pull down to try again."],
   [/network request|failed to fetch|timeout|timed out|rpc|http/i, "We could not reach the network. Check your connection and try again."],

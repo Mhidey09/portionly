@@ -41,6 +41,9 @@ export function useSettle(p: Portionly) {
   const [plan, setPlan] = useState<SettlePlan | null>(null);
   const [progress, setProgress] = useState<ExecutionUpdate | null>(null);
   const [done, setDone] = useState<Done | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [copied, setCopied] = useState(false);
   const quoteSeq = useRef(0);
 
   const amountIn = parseDollars(amountInput);
@@ -168,16 +171,53 @@ export function useSettle(p: Portionly) {
   async function getTestDollars(): Promise<void> {
     if (!main) return;
     setError(null);
+    setNote(null);
     setBusy("Getting test dollars");
     try {
+      // The faucet is a transaction, so it needs a fee. Check the live balance first and say so plainly.
+      const live = await refresh();
+      if (!live || live.mon === 0n) {
+        setError("You need test MON first. It pays the network fee. Copy your address, get test MON from the faucet, then come back.");
+        return;
+      }
+      const before = live.ausd;
       await requestTestDollars(main);
-      await refresh();
+      const after = await refresh();
+      const added = after ? after.ausd - before : 0n;
+      setNote(added > 0n ? `${(Number(added) / 1e6).toLocaleString("en-US")} test dollars added.` : "Test dollars requested. They will show here in a moment.");
     } catch (caught) {
       const raw = describeError(caught);
-      setError(/MaxFrequencyExceeded|frequency/i.test(raw) ? "The faucet allows one request a minute. Wait a moment and try again." : /MaxAllowedExceeded/i.test(raw) ? "You already hold the most test dollars the faucet allows." : raw);
+      setError(
+        /MaxFrequencyExceeded|frequency/i.test(raw)
+          ? "The faucet allows one request a minute. Wait a moment and try again."
+          : /MaxAllowedExceeded/i.test(raw)
+            ? "You already hold the most test dollars the faucet allows."
+            : /invalid parameters|insufficient|balance/i.test(raw)
+              ? "The network refused that request. Check that you have test MON for the fee, then try again."
+              : "We could not get test dollars just now. Try again in a moment.",
+      );
     } finally {
       setBusy(null);
     }
+  }
+
+  async function pull(): Promise<void> {
+    setRefreshing(true);
+    setError(null);
+    try {
+      await refresh();
+    } catch {
+      setError("We could not reach the test network. Check your connection and try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function copyAddress(): Promise<void> {
+    if (!address) return;
+    await Clipboard.setStringAsync(address).catch(() => undefined);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   }
 
   /** Test MON comes from Monad's own faucet. Copy the address first so it can be pasted there. */
@@ -203,7 +243,7 @@ export function useSettle(p: Portionly) {
   return {
     step, balances, approved, health, metrics, recent, person, personIndex, recipient, recipientText, amountInput, amountIn, quote, quoting, error, busy, plan, progress, done,
     lowDollars, noMon, lowMon,
-    setError, pickPerson, typeRecipient, typeAmount, paste, review, confirm, getTestDollars, openMonFaucet, reset, goBack: () => setStep("form"), refresh,
+    setError, pickPerson, typeRecipient, typeAmount, paste, review, confirm, getTestDollars, openMonFaucet, copyAddress, copied, note, setNote, pull, refreshing, reset, goBack: () => setStep("form"), refresh,
   };
 }
 
