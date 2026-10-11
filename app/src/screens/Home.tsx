@@ -2,7 +2,8 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useState } from "react";
 import Constants from "expo-constants";
 import { Pressable, View } from "react-native";
-import { versionLabel } from "../appUpdate";
+import { restartApp, versionLabel } from "../appUpdate";
+import { signOutOfPhone } from "../storage";
 import { lockPhrase, type SentLink } from "../linkShare";
 import type { Person } from "../people";
 import { formatBalances } from "../network";
@@ -242,6 +243,15 @@ function DetailsSheet({ p, visible, onClose }: { p: Portionly; visible: boolean;
         onPress={() => {
           onClose();
           void p.connect("signin");
+        }}
+      />
+      <T variant="small">Signing out removes the account from this phone only. Your money stays where it is, and signing in with your fingerprint brings it back.</T>
+      <Button
+        variant="ghost"
+        label="Sign out of this phone"
+        disabled={p.busy !== null}
+        onPress={() => {
+          void signOutOfPhone().then(restartApp);
         }}
       />
     </Sheet>

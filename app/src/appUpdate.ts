@@ -30,4 +30,13 @@ function versionLabel(appVersion: string): string {
   return id ? `Version ${appVersion} · ${stamp} · ${id.slice(0, 8)}` : `Version ${appVersion}`;
 }
 
-export { applyUpdateIfAny, versionLabel };
+/** Starts the app again from the top, used after signing out so the intro shows. */
+async function restartApp(): Promise<void> {
+  try {
+    await Updates.reloadAsync();
+  } catch {
+    // In development there is nothing to reload; the next open shows the intro.
+  }
+}
+
+export { applyUpdateIfAny, restartApp, versionLabel };

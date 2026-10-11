@@ -110,5 +110,11 @@ async function clearAccount(): Promise<void> {
   await deleteItemAsync(ACCOUNT_KEY);
 }
 
-export { clearAccount, loadAccount, loadOnboarded, loadPeople, loadWithdrawals, readStoredPrf, saveOnboarded, savePeople, saveWithdrawals, storeAccount };
+/** Signing out of this phone: forget the account and show the intro again. Money stays on the chain, and money link keys this phone made are kept. */
+async function signOutOfPhone(): Promise<void> {
+  await clearAccount();
+  await deleteItemAsync(ONBOARDED_KEY);
+}
+
+export { clearAccount, signOutOfPhone, loadAccount, loadOnboarded, loadPeople, loadWithdrawals, readStoredPrf, saveOnboarded, savePeople, saveWithdrawals, storeAccount };
 export type { PendingWithdrawal, StoredAccount };
