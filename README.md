@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://youtu.be/khrRnv4NSdM"><b>Demo video</b></a> ·
   <a href="https://portionly-three.vercel.app"><b>Live site</b></a> ·
   <a href="https://expo.dev/artifacts/eas/qXSTX_SARK0OVhWbZvjwZ5eTXJANsJ4eah6ijF-Rw-U.apk"><b>Android app</b></a> ·
   <a href="https://portionly-three.vercel.app/proof"><b>Proof</b></a> ·

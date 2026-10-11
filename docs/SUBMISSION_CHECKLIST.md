@@ -7,7 +7,7 @@ Ticked only from the live product and the chain, never from intent. Deadline: 13
 - [x] Working product on Monad mainnet (contracts in `docs/DEPLOYMENTS.md`)
 - [ ] Public project profile with demo, short write up and code link
 - [x] Repository public
-- [ ] Demo video
+- [x] Demo video: https://youtu.be/khrRnv4NSdM
 - [x] Contract addresses and transaction hashes recorded (`docs/DEPLOYMENTS.md`, `docs/evidence/`)
 
 ## Agora: Best Cross Border Payments App
@@ -22,7 +22,7 @@ Requirement: a mobile app letting users send AUSD across borders using Mera pass
 - [x] Amounts shown in the recipient's currency at a live reference rate
 - [x] Transfer settled through Agora's Instant Settlement contract on Monad testnet, from a physical phone with a Mera passkey (`docs/evidence/2026-10-11-agora-instant-settlement.md`)
 - [x] Built against Agora's public API (live metrics endpoint)
-- [ ] Demo shows passkey sign in, AUSD balance and a send
+- [x] Demo shows passkey sign in, AUSD balance and a send
 
 ## Monad Foundation: Best Mera Powered UX
 
