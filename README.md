@@ -152,20 +152,13 @@ Everything arrives in the recipient's own account. From the app they can send it
 
 ## Honest limitations
 
-- Android only. The app is a test release distributed as an APK, not a store listing.
-- No cash in or cash out to banks yet. Recipients receive digital dollars, shown in their own currency at a reference rate. The planned way out is a licensed off ramp that already supports AUSD on Monad; access was requested on 11 Oct 2026 and nothing is wired until it is granted.
-- Network fees are paid in MON. A payment sent by link brings its own fee and leaves the rest with the recipient; someone paid straight to an address needs a little MON before they can move the money on.
-- A money link works like cash: whoever opens it can collect. The sender can take the money back at any time before that.
-- Local currency amounts use a public reference rate. They are a guide, not a payout quote.
-- The app updates itself over the air, so whoever controls its release account can change what it does. Builds are test releases.
-- One stock option. Other tokenized stocks exist on Monad but had no usable liquidity when this was built.
-- Savings earnings are set by the vault and are not guaranteed. The stock fund moves with the market and is not direct share ownership.
-- Buying then selling the stock portion the same day cost about 1.8% in pool fees in our mainnet test.
-- The contracts are unaudited. Amounts used in testing were small on purpose.
-- Savings sit in a third party vault that puts deposits to work. An instant withdrawal is paid from the cash the vault has on hand, which is sometimes very little; the app checks first and offers the free withdrawal, which is paid after the vault's waiting period.
-- If the stock price moves more than 1% while a payment is sent, the stock part goes to savings instead. When the sender has locked the savings, the app cancels the whole payment so that money meant to stay liquid is never frozen. A locked payment sent by link is the exception: there the stock part joins the locked savings, and the app says so before sending.
-- The stock part pays about 0.9% in pool fees to buy and the same to sell, so it suits money meant to stay a while. The app shows the cost in dollars before signing.
-- People, budgets and sent links are found again from the chain when you sign in on a new phone. Names you gave people are not stored anywhere but the phone, so restored people come back as Person 1, Person 2 to rename. A link made on another install can be taken back but not shared again.
+- **Android test release.** Installed from an APK, not a store.
+- **No bank cash out yet.** Recipients receive digital dollars, shown in their own currency. Access to a licensed off ramp for AUSD on Monad was requested on 11 Oct 2026.
+- **Fees are paid in MON.** A payment sent by link carries its own fee. Someone paid straight to an address needs a little MON before moving the money on.
+- **Savings and stocks carry real risk.** Earnings are not guaranteed, the stock fund moves with the market and costs about 0.9% to buy or sell, and an instant savings withdrawal depends on the vault having cash on hand. The app shows each of these before you commit.
+- **Unaudited.** The contracts are source verified and covered by unit, fuzz, invariant and mainnet fork tests, but have had no professional audit. Test amounts were small on purpose.
+
+The fine print is in [SECURITY.md](SECURITY.md).
 
 ## Layout
 
