@@ -21,3 +21,7 @@ Explorer: <https://testnet.monadvision.com/tx/0xedac48c9334840def59d15442402b499
 Why testnet: on mainnet the pair accepts only swappers Agora has verified. The rest of Portionly (the split, savings, stocks, links) runs on mainnet with real funds.
 
 The app also reads Agora's public API (`GET https://api.agora.finance/v0/metrics`) for AUSD in circulation on Monad. The account, route and transaction endpoints need a verified business session and are not called.
+
+## From the phone
+
+The same flow was then run on a physical Android phone from the passkey account `0x090751B927929872b16f6078492c5585A2e8D830`: test dollars from the faucet, instant settle turned on, then two settlements (500 and 1,000 test dollars) to two saved people. The account's test AUSD balance read 8,500 afterwards, 10,000 less the two payments. The app measured 0.3 seconds from sending the settlement to its receipt.

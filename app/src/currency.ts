@@ -111,21 +111,21 @@ function groupDigits(value: number, digits: number): string {
   return fraction === undefined ? grouped : `${grouped}.${fraction}`;
 }
 
-/** "₦310,000". Uses Intl where it knows the currency, and falls back to "NGN 310,000". */
+// Our own symbols, so every phone shows the same text. Android's JavaScript engine does not know
+// most of these and would otherwise print the three letter code.
+const SYMBOLS: Record<string, string> = {
+  NGN: "₦", GHS: "GH₵", KES: "KSh ", ZAR: "R", UGX: "USh ", TZS: "TSh ", RWF: "FRw ", ETB: "Br ", EGP: "E£", MAD: "MAD ",
+  XOF: "CFA ", XAF: "FCFA ", INR: "₹", PKR: "Rs ", BDT: "৳", LKR: "Rs ", NPR: "Rs ", PHP: "₱", IDR: "Rp ", VND: "₫",
+  THB: "฿", MYR: "RM ", CNY: "¥", MXN: "MX$", BRL: "R$", COP: "COL$", ARS: "AR$", PEN: "S/ ", GTQ: "Q", DOP: "RD$",
+  TRY: "₺", UAH: "₴", EUR: "€", GBP: "£", CAD: "CA$", AUD: "A$",
+};
+
+/** "₦310,000". A currency we have no symbol for falls back to its code: "XX 1,234.50". */
 function formatLocal(amount: number, code: string): string {
   if (!Number.isFinite(amount)) return "";
   const digits = currencyOf(code)?.digits ?? 2;
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: code,
-      currencyDisplay: "narrowSymbol",
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    }).format(amount);
-  } catch {
-    return `${amount < 0 ? "-" : ""}${code} ${groupDigits(amount, digits)}`;
-  }
+  const symbol = SYMBOLS[code] ?? `${code} `;
+  return `${amount < 0 ? "-" : ""}${symbol}${groupDigits(amount, digits)}`;
 }
 
 /**

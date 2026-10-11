@@ -20,7 +20,12 @@ import { cleanAmountInput, formatUsd, shortAddress, trimDecimals } from "../ui/f
 import { colors, fonts, radius, surfaceShadow } from "../ui/theme";
 
 const dollars = (micro: bigint): number => Number(micro) / 1_000_000;
-const settled = (units: bigint): string => `${trimDecimals(formatUnits(units, 18), 4)} settled dollars`;
+// Settled amounts read like the dollar lines beside them: "1,000.00 settled dollars".
+const money2 = (value: string): string => {
+  const [whole, fraction = ""] = value.split(".");
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${(fraction + "00").slice(0, 2)}`;
+};
+const settled = (units: bigint): string => `${money2(formatUnits(units, 18))} settled dollars`;
 const fee = (balance: bigint): string => trimDecimals(formatUnits(balance, 18), 3);
 
 /** The small "Testnet" tag. Said once per screen. */
@@ -269,7 +274,7 @@ function DoneView({ p, s, onClose }: { p: Portionly; s: SettleState; onClose: ()
   const micro = BigInt(Math.round(Number(record.amountIn) * 1_000_000));
   const person = p.people.find((entry) => entry.recipient.toLowerCase() === record.recipient.toLowerCase());
   const to = person?.name ?? shortAddress(record.recipient);
-  const received = `${trimDecimals(record.amountOut, 4)} settled dollars`;
+  const received = `${money2(record.amountOut)} settled dollars`;
   return (
     <>
       <View style={{ alignItems: "center", gap: 14 }}>
