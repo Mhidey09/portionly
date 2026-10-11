@@ -167,6 +167,9 @@ function FormView({ p, s }: { p: Portionly; s: SettleState }) {
 }
 
 function RecentList({ items }: { items: SettledTransfer[] }) {
+  // A receipt only opens on a tap made after this list is on screen, never on the tail of the tap
+  // that closed the screen before it.
+  const shownAt = useRef(Date.now()).current;
   if (items.length === 0) return null;
   return (
     <Rise index={6}>
@@ -180,7 +183,10 @@ function RecentList({ items }: { items: SettledTransfer[] }) {
                 <T variant="strong">{`$${trimDecimals(item.amountIn, 2)} to ${shortAddress(item.recipient)}`}</T>
                 <T variant="small">{new Date(item.at).toLocaleString()}</T>
               </View>
-              <Button small variant="ghost" label="Receipt" onPress={() => void Linking.openURL(`${TESTNET_EXPLORER_TX}${item.hash}`)} />
+              <Button small variant="ghost" label="Receipt" onPress={() => {
+                  if (Date.now() - shownAt > 700) void Linking.openURL(`${TESTNET_EXPLORER_TX}${item.hash}`);
+                }}
+              />
             </View>
           </View>
         ))}
@@ -362,8 +368,10 @@ export function Settle({ p, s, onClose }: { p: Portionly; s: SettleState; onClos
             p={p}
             s={s}
             onClose={() => {
-              s.reset();
+              // Leave first and clear the form after, so the form and its receipt buttons are never
+              // drawn under the finger that tapped Done.
               onClose();
+              setTimeout(s.reset, 300);
             }}
           />
         )}
