@@ -1,5 +1,5 @@
 import { useFonts } from "expo-font";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, Keyboard, StatusBar, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Home } from "./src/screens/Home";
@@ -9,6 +9,7 @@ import { Receive } from "./src/screens/Receive";
 import { Settle } from "./src/screens/Settle";
 import { LinkSuccess, Send, SendSuccess } from "./src/screens/Send";
 import { loadOnboarded, saveOnboarded } from "./src/storage";
+import { applyUpdateIfAny } from "./src/appUpdate";
 import { Splash } from "./src/ui/Splash";
 import { TabBar, type TabKey } from "./src/ui/TabBar";
 import { colors } from "./src/ui/theme";
@@ -19,11 +20,19 @@ function Root() {
   const p = usePortionly();
   const settle = useSettle(p);
   const [settleOpen, setSettleOpen] = useState(false);
+  // True only when no payment, review or settlement is under way.
+  const idle = useRef(true);
+  idle.current = p.busy === null && !p.review && !p.linkReview && !p.result && !p.linkResult && !settleOpen;
   const [tab, setTab] = useState<TabKey>("home");
   const [splashDone, setSplashDone] = useState(false);
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [keyboard, setKeyboard] = useState(false);
   const finishSplash = useCallback(() => setSplashDone(true), []);
+
+  // Pick up a newer version of the app as it opens, before anyone starts a payment.
+  useEffect(() => {
+    void applyUpdateIfAny(() => idle.current);
+  }, []);
 
   useEffect(() => {
     loadOnboarded().then(setOnboarded).catch(() => setOnboarded(false));

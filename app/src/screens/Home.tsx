@@ -1,6 +1,8 @@
 import * as Clipboard from "expo-clipboard";
 import { useEffect, useState } from "react";
+import Constants from "expo-constants";
 import { Pressable, View } from "react-native";
+import { versionLabel } from "../appUpdate";
 import { lockPhrase, type SentLink } from "../linkShare";
 import type { Person } from "../people";
 import { formatBalances } from "../network";
@@ -170,6 +172,7 @@ function DetailsSheet({ p, visible, onClose }: { p: Portionly; visible: boolean;
       <View>
         <T variant="label">Your account</T>
         <T variant="strong" style={{ fontSize: 20 }}>{p.address ? shortAddress(p.address) : "No account yet"}</T>
+        <T variant="small">{versionLabel(Constants.expoConfig?.version ?? "")}</T>
       </View>
       <Button
         variant="secondary"
