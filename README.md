@@ -16,11 +16,16 @@
   <img src="https://img.shields.io/badge/Monad-mainnet-9a86fb" alt="Monad mainnet">
   <img src="https://img.shields.io/badge/built%20for-Monad%20Metropolis-0d1117" alt="Monad Metropolis">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0d1117" alt="MIT"></a>
+  <a href="https://x.com/portionly"><img src="https://img.shields.io/badge/X-@portionly-0d1117" alt="@portionly on X"></a>
 </p>
 
 <p align="center">
   <a href="https://portionly-three.vercel.app"><img src="docs/media/hero.png" alt="The Portionly site: choose Send home or Send + grow and drag the portions"></a>
 </p>
+
+## One payment, three outcomes, one transaction
+
+[This payment](https://monadscan.com/tx/0x3dce58f65bf4d56504f9dbb3607bc52a02298754890e6572a0e6f4dc3fa5bbf9) left a phone as 1 AUSD, signed with a fingerprint. It landed as 0.50 to spend, 0.30 in savings that earn and 0.20 in a US tech stock fund, all in a single Monad transaction. Other ways of sending money home move one amount and stop. Portionly lets the sender decide what the money becomes.
 
 ## The problem
 
@@ -86,7 +91,7 @@ No keys, no seed phrase and no sign up are needed for steps 1 to 3.
 
 - **One transaction.** The portions always add up to exactly what was signed. If any part fails, nothing moves.
 - **Nothing held.** The contracts have no owner, no admin and no upgrade path. Assets go to the recipient, to a lock only the recipient can open, or wait under a link the sender can take back until it is collected.
-- **Readable.** All four contracts are source verified on Sourcify.
+- **Readable.** All four contracts are source verified on Sourcify; links are in [Deployments](docs/DEPLOYMENTS.md).
 - **Checked before success.** The app compares balances before and after and reads the `PlanExecuted` event before it says "Sent".
 
 ## One fingerprint, a wallet for each person
@@ -137,6 +142,8 @@ Everything arrives in the recipient's own account. From the app they can send it
 - Savings earnings are set by the vault and are not guaranteed. The stock fund moves with the market and is not direct share ownership.
 - Buying then selling the stock portion the same day cost about 1.8% in pool fees in our mainnet test.
 - The contracts are unaudited. Amounts used in testing were small on purpose.
+- If the stock price moves more than 1% while a payment is sent, the stock part goes to savings instead. When the sender has locked the savings, the app cancels the whole payment so that money meant to stay liquid is never frozen. A locked payment sent by link is the exception: there the stock part joins the locked savings, and the app says so before sending.
+- The stock part pays about 0.9% in pool fees to buy and the same to sell, so it suits money meant to stay a while. The app shows the cost in dollars before signing.
 - If the app is reinstalled, the list of saved people is lost. Their wallets come back by adding them again in the same order.
 
 ## Repository

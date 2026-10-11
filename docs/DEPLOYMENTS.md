@@ -10,6 +10,19 @@ Monad mainnet, chain ID 143. Deployed 2026-10-09 by `0x42e0dDf73e2275e7F41B22Cf9
 
 None of the contracts has an owner, admin or upgrade path. The deployer keeps no control after deployment.
 
+## Source
+
+All four contracts are source verified on Sourcify (creation and runtime bytecode match):
+
+| Contract | Verified source |
+|---|---|
+| PortionlySplitterV2 | <https://repo.sourcify.dev/143/0x28ac522B6224dBDAD523f3dBFa9D3a62d995dA1a> |
+| PortionlyAqqqInvest | <https://repo.sourcify.dev/143/0xe899fB7aD899d74b55b9a911D2d6DB6784d3c9db> |
+| PortionlyFuture | <https://repo.sourcify.dev/143/0x816fd57253CD589B76cF24B8cA1Ba38bB7818E22> |
+| PortionlyLink | <https://repo.sourcify.dev/143/0x67BCA6463B917940199c322C4b5678044936EdC7> |
+
+`contracts/src/PortionlySplitter.sol` is an earlier version of the splitter. It was never deployed. It stays in the repository because the deployed contracts import their vault and lock interfaces from that file, and moving them would change the compiled metadata so the repository would no longer reproduce the verified bytecode.
+
 ## Verification
 
 Runtime bytecode read with `cast code`:
