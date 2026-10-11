@@ -23,6 +23,8 @@ The buy and sell each cross the 0.9% fee aQQQ/USDC pool, so a same-day round tri
 
 Receipt: 238935 earnAUSD out, 249500 AUSD in.
 
+An instant withdrawal is paid from the cash the vault holds at that moment. On 11 Oct 2026 the vault held 8 base units of AUSD, and the same call would have reverted; the app now reads the vault's cash first and offers only the free withdrawal when it is short (`contracts/test/UpshiftRedeemFork.t.sol`, `test_instantRedeemNeedsSpareCash`).
+
 ## Standard withdrawal (no fee, after the vault's lag)
 
 Not yet run on mainnet. `contracts/test/UpshiftRedeemForkTest` proves `requestRedeem` then `claim(year, month, day, receiver)` against the live vault: 0.47787 earnAUSD returned 0.499998 AUSD, against 0.498999 AUSD for the instant path.

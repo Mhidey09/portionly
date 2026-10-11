@@ -10,6 +10,7 @@ const RULES: [RegExp, string][] = [
   [/stale|expired/i, "The price went out of date. Go back and review again to get a fresh price."],
   [/Post-check failed/i, "We could not confirm that everything arrived as planned. Check your balances before you try again."],
   [/Missing or invalid parameters|insufficient (funds|balance)/i, "The network refused that. Check that you have enough fee balance, then try again."],
+  [/ERC20InsufficientBalance|0xe450d38c/i, "The savings vault could not pay that out just now. Try the free withdrawal, or try again later."],
   [/InvestFailed|InvestBelowMinimum|ReceivedBelowMinimum/i, "The stock price moved too much just then, so nothing was sent. Review again for a fresh price."],
   [/reverted/i, "The network did not accept that step. Check your balances, then try again."],
   [/Indexer/i, "We could not load your locked savings right now. Pull down to try again."],

@@ -269,13 +269,15 @@ const upshiftReadAbi = [
 ] as const;
 
 /** AUSD the vault would pay for these shares: instant (after its fee) or standard (after its lag). */
-async function previewSavings(shares: bigint): Promise<{ instant: bigint; standard: bigint }> {
-  if (shares === 0n) return { instant: 0n, standard: 0n };
-  const [[, instant], [standard]] = await Promise.all([
+async function previewSavings(shares: bigint): Promise<{ instant: bigint; standard: bigint; instantAvailable: boolean }> {
+  if (shares === 0n) return { instant: 0n, standard: 0n, instantAvailable: false };
+  const [[, instant], [standard], spare] = await Promise.all([
     publicClient.readContract({ address: ADDRESSES.growVault, abi: upshiftReadAbi, functionName: "previewRedemption", args: [shares, true] }),
     publicClient.readContract({ address: ADDRESSES.growVault, abi: upshiftReadAbi, functionName: "previewRedemption", args: [shares, false] }),
+    // The vault puts deposits to work, so it only pays an instant withdrawal from the cash it has on hand.
+    publicClient.readContract({ address: ADDRESSES.ausd, abi: erc20Abi, functionName: "balanceOf", args: [ADDRESSES.growVault] }),
   ]);
-  return { instant, standard };
+  return { instant, standard, instantAvailable: spare >= standard };
 }
 
 /** The date a standard withdrawal requested now becomes claimable. */

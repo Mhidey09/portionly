@@ -116,6 +116,9 @@ Everything arrives in the recipient's own account. From the app they can send it
 | Amounts in the recipient's currency | Live, public reference rate | App and [recipient page](https://portionly-three.vercel.app/pay/0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2?cur=NGN) |
 | Sell stocks, withdraw savings now | Done on mainnet | [Evidence](docs/evidence/2026-10-10-recipient-actions.md) |
 | Withdraw savings after the waiting period | Mainnet fork test | `contracts/test/UpshiftRedeemFork.t.sol` |
+| A transfer settled through Agora Instant Settlement | Done on Monad testnet, from a phone | [Evidence](docs/evidence/2026-10-11-agora-instant-settlement.md) |
+| Restore people, budgets and sent links on a new phone | Built; checked against the real account's chain history | `app/src/restore.ts` |
+| Contract tests | 26 unit, 36 fuzz (1,024 runs each), 6 invariants (16,384 calls each), 13 mainnet fork tests | [`contracts/test/`](contracts/test) |
 | Payment history and proof page | Live, from the indexer | [`indexer/`](indexer) |
 | Cash out to a bank | Not built | Needs a licensed partner's key, requested |
 
@@ -125,7 +128,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 |---|---|
 | **Monad** | One transaction settles all three portions in about a second |
 | **Mera** | The whole account layer: a fingerprint creates the account and every wallet in it |
-| **AUSD (Agora)** | The dollars that move |
+| **AUSD (Agora)** | The dollars that move. Instant settle runs a transfer through Agora's Instant Settlement pair on testnet, and the app reads Agora's public metrics API |
 | **Upshift** | The savings vault |
 | **Anchored aQQQ on Uniswap v4** | The stock portion |
 | **Envio HyperIndex** | Payment history, locked savings and the public proof page |
@@ -142,9 +145,10 @@ Everything arrives in the recipient's own account. From the app they can send it
 - Savings earnings are set by the vault and are not guaranteed. The stock fund moves with the market and is not direct share ownership.
 - Buying then selling the stock portion the same day cost about 1.8% in pool fees in our mainnet test.
 - The contracts are unaudited. Amounts used in testing were small on purpose.
+- Savings sit in a third party vault that puts deposits to work. An instant withdrawal is paid from the cash the vault has on hand, which is sometimes very little; the app checks first and offers the free withdrawal, which is paid after the vault's waiting period.
 - If the stock price moves more than 1% while a payment is sent, the stock part goes to savings instead. When the sender has locked the savings, the app cancels the whole payment so that money meant to stay liquid is never frozen. A locked payment sent by link is the exception: there the stock part joins the locked savings, and the app says so before sending.
 - The stock part pays about 0.9% in pool fees to buy and the same to sell, so it suits money meant to stay a while. The app shows the cost in dollars before signing.
-- If the app is reinstalled, the list of saved people is lost. Their wallets come back by adding them again in the same order.
+- People, budgets and sent links are found again from the chain when you sign in on a new phone. Names you gave people are not stored anywhere but the phone, so restored people come back as Person 1, Person 2 to rename. A link made on another install can be taken back but not shared again.
 
 ## Repository
 

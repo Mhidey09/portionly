@@ -109,7 +109,7 @@ export function usePortionly() {
   const [lockDays, setLockDays] = useState<LockDays>(0);
   const [locks, setLocks] = useState<LockedSaving[] | null>(null);
   const [locksError, setLocksError] = useState<string | null>(null);
-  const [savingsValue, setSavingsValue] = useState<{ instant: bigint; standard: bigint } | null>(null);
+  const [savingsValue, setSavingsValue] = useState<{ instant: bigint; standard: bigint; instantAvailable: boolean } | null>(null);
   const [sellReview, setSellReview] = useState<SellReview | null>(null);
   const [withdrawals, setWithdrawals] = useState<PendingWithdrawal[]>([]);
   const [moneyNote, setMoneyNote] = useState<string | null>(null);
@@ -230,7 +230,7 @@ export function usePortionly() {
   useEffect(() => {
     setSellReview(null);
     if (!balances || balances.earn === 0n) {
-      setSavingsValue(balances ? { instant: 0n, standard: 0n } : null);
+      setSavingsValue(balances ? { instant: 0n, standard: 0n, instantAvailable: false } : null);
       return;
     }
     previewSavings(balances.earn).then(setSavingsValue).catch(() => setSavingsValue(null));

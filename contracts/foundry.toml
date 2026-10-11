@@ -5,3 +5,11 @@ libs = ["lib"]
 fs_permissions = [{ access = "read", path = "./test/fixtures" }]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+
+[fuzz]
+runs = 1024
+
+[invariant]
+runs = 256
+depth = 64
+fail_on_revert = false

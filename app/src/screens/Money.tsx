@@ -48,7 +48,9 @@ export function Money({ p }: { p: Portionly }) {
               {b.earn > 0n && p.savingsValue ? (
                 <>
                   <MoneyText value={dollars(p.savingsValue.standard)} variant="display" style={{ fontSize: 44, lineHeight: 50, marginTop: 6 }} />
-                  <T variant="small">Worth {formatUsd(p.savingsValue.standard)} if withdrawn in about 3 days, or {formatUsd(p.savingsValue.instant)} now.</T>
+                  <T variant="small">
+                    Worth {formatUsd(p.savingsValue.standard)} if withdrawn in about 3 days{p.savingsValue.instantAvailable ? `, or ${formatUsd(p.savingsValue.instant)} now` : ""}.
+                  </T>
                 </>
               ) : b.earn > 0n ? (
                 <T variant="small" style={{ marginTop: 6 }}>You hold {units(b.earn)} savings units. Their dollar value is not available right now.</T>
@@ -59,7 +61,11 @@ export function Money({ p }: { p: Portionly }) {
               {b.earn > 0n &&
                 (p.wallet ? (
                   <View style={{ gap: 10, marginTop: 16 }}>
-                    <Button label="Withdraw now (0.2% fee)" disabled={busy} onPress={() => void p.withdrawSavings("instant")} />
+                    {p.savingsValue?.instantAvailable ? (
+                      <Button label="Withdraw now (0.2% fee)" disabled={busy} onPress={() => void p.withdrawSavings("instant")} />
+                    ) : (
+                      <T variant="small">The savings vault has no spare cash for an instant withdrawal right now. The free withdrawal below still works.</T>
+                    )}
                     <Button variant="secondary" label="Withdraw free in about 3 days" disabled={busy} onPress={() => void p.withdrawSavings("standard")} />
                   </View>
                 ) : (
