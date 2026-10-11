@@ -10,22 +10,26 @@
 </p>
 
 <p align="center">
-  <a href="https://portionly-three.vercel.app"><img src="https://img.shields.io/badge/live-portionly--three.vercel.app-6f52f5" alt="Live site"></a>
-  <a href="https://portionly-three.vercel.app/proof"><img src="https://img.shields.io/badge/proof-every%20payment-5a3de6" alt="Proof"></a>
+  <a href="https://portionly-three.vercel.app"><b>Live site</b></a> ·
+  <a href="https://expo.dev/artifacts/eas/qXSTX_SARK0OVhWbZvjwZ5eTXJANsJ4eah6ijF-Rw-U.apk"><b>Android app</b></a> ·
+  <a href="https://portionly-three.vercel.app/proof"><b>Proof</b></a> ·
+  <a href="https://x.com/portionly"><b>@portionly</b></a> ·
   <a href="https://github.com/Mhidey09/portionly/actions/workflows/verify.yml"><img src="https://github.com/Mhidey09/portionly/actions/workflows/verify.yml/badge.svg" alt="verify"></a>
-  <img src="https://img.shields.io/badge/Monad-mainnet-9a86fb" alt="Monad mainnet">
-  <img src="https://img.shields.io/badge/built%20for-Monad%20Metropolis-0d1117" alt="Monad Metropolis">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0d1117" alt="MIT"></a>
-  <a href="https://x.com/portionly"><img src="https://img.shields.io/badge/X-@portionly-0d1117" alt="@portionly on X"></a>
 </p>
 
 <p align="center">
   <a href="https://portionly-three.vercel.app"><img src="docs/media/hero.png" alt="The Portionly site: choose Send home or Send + grow and drag the portions"></a>
 </p>
 
+Built for **Monad Metropolis**, Track 02: Consumer Products & Payments. Runs on Monad mainnet with real payments; the Agora Instant Settlement flow runs on Monad testnet, as that bounty asks.
+
 ## One payment, three outcomes, one transaction
 
 [This payment](https://monadscan.com/tx/0x3dce58f65bf4d56504f9dbb3607bc52a02298754890e6572a0e6f4dc3fa5bbf9) left a phone as 1 AUSD, signed with a fingerprint. It landed as 0.50 to spend, 0.30 in savings that earn and 0.20 in a US tech stock fund, all in a single Monad transaction. Other ways of sending money home move one amount and stop. Portionly lets the sender decide what the money becomes.
+
+<p align="center">
+  <img src="docs/media/app-sent.png" alt="The Sent screen: one payment shown as its three portions" width="280">
+</p>
 
 ## The problem
 
@@ -54,18 +58,31 @@ Two things make it work across borders, not just between wallets:
   <img src="docs/media/app-sent.png" alt="Sent: the three portions that arrived" width="260">
 </p>
 
-## Try it in five minutes
+## For judges: five minutes, no keys
 
-| Step | Where |
-|---|---|
-| 1. See it | [portionly-three.vercel.app](https://portionly-three.vercel.app): flip between Send home and Send + grow, drag the lines |
-| 2. Check it is real | [Proof](https://portionly-three.vercel.app/proof): every payment the contracts have settled, each linked to its receipt |
-| 3. See what a recipient sees | [A real recipient's page](https://portionly-three.vercel.app/pay/0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2) |
-| 4. Use it | Tap **Get the Android app** on the site, open it, create an account with your fingerprint |
+| Step | What to do | What you see |
+|---|---|---|
+| 1 | Open [portionly-three.vercel.app](https://portionly-three.vercel.app) | Flip between Send home and Send + grow, drag the lines, pick a currency |
+| 2 | Open [Proof](https://portionly-three.vercel.app/proof) | Every payment the contracts have settled, each linked to its receipt |
+| 3 | Open [a real recipient's page](https://portionly-three.vercel.app/pay/0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2?cur=NGN) | What arrived, as three portions, in their currency, with locked savings |
+| 4 | Install the [Android app](https://expo.dev/artifacts/eas/qXSTX_SARK0OVhWbZvjwZ5eTXJANsJ4eah6ijF-Rw-U.apk) and open it | Three intro pages, then an account made with your fingerprint. No seed phrase |
+| 5 | In the app: Home, then **Instant settle** | Free test dollars from Agora's faucet, then a payment settled through Agora Instant Settlement in under a second |
 
-No keys, no seed phrase and no sign up are needed for steps 1 to 3.
+Steps 1 to 3 need nothing installed. Step 5 uses Monad testnet, so it costs nothing. Sending on mainnet needs a little AUSD and MON in the account; the Receive tab shows the address to fund.
 
-## How it works
+## Product flow
+
+| Step | What happens | Where to see it |
+|---|---|---|
+| 1. Sign in | A fingerprint creates the account through a Mera passkey | App: first run |
+| 2. Choose who | A saved person, an address or pay link, or a link for someone with no account | App: Send, step one |
+| 3. Choose how | Send home, or Send + grow with draggable portions and an optional lock on the savings | App: Send, step two |
+| 4. Review | Each portion in dollars and in their currency, the live stock price, the cost of the stock part | App: review screen |
+| 5. Settle | One transaction routes all three portions; the app checks balances and the event before it says Sent | [A real payment](https://monadscan.com/tx/0x3dce58f65bf4d56504f9dbb3607bc52a02298754890e6572a0e6f4dc3fa5bbf9) |
+| 6. Receive | The recipient sees what arrived on their page, or collects a link with a fingerprint | [Recipient page](https://portionly-three.vercel.app/pay/0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2) |
+| 7. Use it | Spend it, withdraw savings, sell stocks, claim locked savings when the date passes | App: Money |
+
+## Architecture
 
 ```
  Sender's phone                         Monad mainnet                         Recipient
@@ -133,7 +150,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 | **Anchored aQQQ on Uniswap v4** | The stock portion |
 | **Envio HyperIndex** | Payment history, locked savings and the public proof page |
 
-## Scope and limits
+## Honest limitations
 
 - Android only. The app is a test release distributed as an APK, not a store listing.
 - No cash in or cash out to banks yet. Recipients receive digital dollars, shown in their own currency at a reference rate. The planned way out is a licensed off ramp that already supports AUSD on Monad; access was requested on 11 Oct 2026 and nothing is wired until it is granted.
@@ -150,7 +167,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 - The stock part pays about 0.9% in pool fees to buy and the same to sell, so it suits money meant to stay a while. The app shows the cost in dollars before signing.
 - People, budgets and sent links are found again from the chain when you sign in on a new phone. Names you gave people are not stored anywhere but the phone, so restored people come back as Person 1, Person 2 to rename. A link made on another install can be taken back but not shared again.
 
-## Repository
+## Layout
 
 | Folder | What is in it |
 |---|---|
@@ -160,7 +177,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 | [`indexer/`](indexer) | Envio HyperIndex config, schema and handlers |
 | [`docs/`](docs) | Product brief, deployments, build log and evidence |
 
-## Run it
+## Quick start
 
 ```sh
 # contracts: unit tests, then the same suite against Monad mainnet
