@@ -18,6 +18,10 @@ Requirement: a mobile app letting users send AUSD across borders using Mera pass
 - [x] Mera passkey onboarding on a physical phone, no seed phrase (`docs/evidence/2026-10-09-phone-mera-plan.md`)
 - [x] Sends AUSD to another account from the phone: Send home, tx `0x3b20456a3032fcefcac481182c49526506973be309a27dffff506c0fc67065f0`
 - [x] Settles in one Monad transaction; the app verifies balances before showing success
+- [x] Send to someone with no account: a link that pays its own fee (`docs/evidence/2026-10-10-link-payment.md`)
+- [x] Amounts shown in the recipient's currency at a live reference rate
+- [ ] Transfer settled through Agora's Instant Settlement contract on Monad testnet, as the bounty text requires
+- [ ] Built against Agora's public API (live metrics endpoint)
 - [ ] Demo shows passkey sign in, AUSD balance and a send
 
 ## Monad Foundation: Best Mera Powered UX

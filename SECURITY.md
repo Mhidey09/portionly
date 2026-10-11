@@ -8,15 +8,19 @@ Open a [private security advisory](https://github.com/Mhidey09/portionly/securit
 
 ## What the design relies on
 
-- **No owner.** `PortionlySplitterV2`, `PortionlyAqqqInvest` and `PortionlyFuture` have no admin, no pause and no upgrade path. Nobody, including the deployer, can move funds or change addresses after deployment.
+- **No owner.** `PortionlySplitterV2`, `PortionlyAqqqInvest`, `PortionlyFuture` and `PortionlyLink` have no admin, no pause and no upgrade path. Nobody, including the deployer, can move funds or change addresses after deployment.
 - **Nothing held.** The splitter and the stock executor end every call holding no AUSD. Locked savings sit in `PortionlyFuture` and only the named beneficiary can claim them, only after the unlock time.
 - **All or nothing.** A plan's portions must add up to the amount pulled from the sender. If the stock purchase fails or lands below the signed minimum, that portion goes to savings when the sender allowed it, otherwise the whole plan reverts.
 - **Pinned routes.** Token, vault, pool and router addresses are constants or immutables, checked at deploy time.
-- **Keys stay on the phone.** The account comes from a passkey through Mera. Keys are derived in memory, used and zeroed. There is no server that holds or sees them.
+- **Keys stay on the phone.** The account comes from a passkey through Mera. There is no server that holds or sees keys. The secret the passkey produces is kept in the phone's secure storage behind the fingerprint so the app can unlock without a new passkey prompt each time; signing keys are derived from it in memory, used and zeroed.
+- **Links are bearer secrets.** A payment sent by link waits under a one time key. The key travels in the part of the link after `#`, which browsers do not send to servers, and the claim page reads it locally. Anyone who gets the link can collect, so the sender can cancel until it is collected, and the app saves the key before any money moves so a crash cannot strand it. Link keys are stored on the sender's phone without a fingerprint prompt.
 
 ## Known limits
 
 - The Upshift vault, Uniswap v4 pools, AUSD and aQQQ are outside this repository. A fault, pause or upgrade in any of them affects Portionly.
 - Lock ids are scoped to the depositor, so an id seen in a pending transaction cannot be taken by someone else. A sender can still not lock twice under the same plan id.
 - The app trusts the public Monad RPC and the Envio indexer for what it displays. Payment success is confirmed from the transaction receipt and balances, not from the indexer.
-- The Android build is a test release distributed as an APK.
+- The Android build is a test release distributed as an APK. It takes JavaScript updates over the air without code signing, so the release account is trusted: whoever controls it can change the app's behaviour.
+- A link's creation can be made to fail by someone who front runs it with the same link address. No money is lost; the sender tries again with a new link.
+- Someone paid straight to an address, not by link, needs MON before they can move funds.
+- The contracts are verified on Sourcify but have had no professional audit.

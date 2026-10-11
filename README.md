@@ -38,6 +38,11 @@ The sender decides what the money becomes before it leaves, and it all settles i
 
 Need it all to arrive as cash today? **Send home** skips the split and sends every dollar as AUSD.
 
+Two things make it work across borders, not just between wallets:
+
+- **Send to a link.** The person at the other end needs no account, no address and no fee coin. The sender shares a link; they open it, create an account with a fingerprint and collect. The link pays its own network fee and passes on what is left.
+- **Their currency.** Pick a person's currency once and every amount also shows in their money, at a live reference rate, in the app and on the page they open.
+
 <p align="center">
   <img src="docs/media/app-home.png" alt="Home: balance and people" width="260">
   &nbsp;&nbsp;
@@ -70,11 +75,18 @@ No keys, no seed phrase and no sign up are needed for steps 1 to 3.
                                                            (if the price moves more than 1%,
                                                             this part goes to savings instead)
 
+ No account at the other end?
+ fingerprint  ──▶  PortionlyLink.create ──▶ waits under a one time key ──▶ link ──▶ they open it,
+                                                                                    make an account,
+                                                                                    and the key claims:
+                                                                                    same three portions
+
  PlanExecuted, PositionLocked, PositionClaimed  ──▶  Envio HyperIndex  ──▶  history, locked savings, proof page
 ```
 
 - **One transaction.** The portions always add up to exactly what was signed. If any part fails, nothing moves.
-- **Nothing held.** The contracts have no owner, no admin and no upgrade path. Assets go to the recipient, or to a lock only the recipient can open.
+- **Nothing held.** The contracts have no owner, no admin and no upgrade path. Assets go to the recipient, to a lock only the recipient can open, or wait under a link the sender can take back until it is collected.
+- **Readable.** All four contracts are source verified on Sourcify.
 - **Checked before success.** The app compares balances before and after and reads the `PlanExecuted` event before it says "Sent".
 
 ## One fingerprint, a wallet for each person
@@ -94,6 +106,9 @@ Everything arrives in the recipient's own account. From the app they can send it
 | Send home | Done on mainnet from a phone | [Proof page](https://portionly-three.vercel.app/proof) |
 | Savings locked for a month | Done on mainnet from a phone | [Proof page](https://portionly-three.vercel.app/proof) |
 | Claim after the lock | Mainnet fork test; the first real lock opens 9 Nov 2026 | `contracts/test/PortionlySplitterV2Fork.t.sol` |
+| Send to a link, collected with the link paying its own fee | Done on mainnet | [Evidence](docs/evidence/2026-10-10-link-payment.md) |
+| One passkey, a wallet per person | Done on mainnet from a phone | [Evidence](docs/evidence/2026-10-10-many-keys.md) |
+| Amounts in the recipient's currency | Live, public reference rate | App and [recipient page](https://portionly-three.vercel.app/pay/0x42e0dDf73e2275e7F41B22Cf9c587ADDA3C1B7D2?cur=NGN) |
 | Sell stocks, withdraw savings now | Done on mainnet | [Evidence](docs/evidence/2026-10-10-recipient-actions.md) |
 | Withdraw savings after the waiting period | Mainnet fork test | `contracts/test/UpshiftRedeemFork.t.sol` |
 | Payment history and proof page | Live, from the indexer | [`indexer/`](indexer) |
@@ -114,6 +129,10 @@ Everything arrives in the recipient's own account. From the app they can send it
 
 - Android only. The app is a test release distributed as an APK, not a store listing.
 - No cash in or cash out to banks yet. Recipients receive digital dollars.
+- Network fees are paid in MON. A payment sent by link brings its own fee and leaves the rest with the recipient; someone paid straight to an address needs a little MON before they can move the money on.
+- A money link works like cash: whoever opens it can collect. The sender can take the money back at any time before that.
+- Local currency amounts use a public reference rate. They are a guide, not a payout quote.
+- The app updates itself over the air, so whoever controls its release account can change what it does. Builds are test releases.
 - One stock option. Other tokenized stocks exist on Monad but had no usable liquidity when this was built.
 - Savings earnings are set by the vault and are not guaranteed. The stock fund moves with the market and is not direct share ownership.
 - Buying then selling the stock portion the same day cost about 1.8% in pool fees in our mainnet test.
@@ -124,7 +143,7 @@ Everything arrives in the recipient's own account. From the app they can send it
 
 | Folder | What is in it |
 |---|---|
-| [`contracts/`](contracts) | Foundry contracts, deploy script, unit and Monad fork tests |
+| [`contracts/`](contracts) | Foundry contracts (splitter, stock executor, lock, link), deploy scripts, unit and Monad fork tests |
 | [`app/`](app) | Android app (Expo, React Native, Mera) |
 | [`dashboard/`](dashboard) | The site: landing page, recipient page, proof page |
 | [`indexer/`](indexer) | Envio HyperIndex config, schema and handlers |
