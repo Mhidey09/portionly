@@ -8,6 +8,7 @@ Ticked only from the live product and the chain, never from intent. Deadline: 13
 - [ ] Public project profile with demo, short write up and code link
 - [x] Repository public
 - [x] Demo video: https://youtu.be/khrRnv4NSdM
+- [x] Pitch video: https://youtu.be/62iSKQnbwE8
 - [x] Contract addresses and transaction hashes recorded (`docs/DEPLOYMENTS.md`, `docs/evidence/`)
 
 ## Agora: Best Cross Border Payments App
