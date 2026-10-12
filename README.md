@@ -115,7 +115,7 @@ Steps 1 to 3 need nothing installed. Step 5 uses Monad testnet, so it costs noth
 
 ## One fingerprint, a wallet for each person
 
-The account is a [Mera](https://docs.monad.xyz/guides/mera) passkey: no seed phrase, no extension, no server holding keys. From that one passkey the app derives a main wallet and a separate wallet for each person the sender pays, so every relationship has its own budget and history, and a recipient sees only the wallet that pays them.
+The account is a [Mera](https://docs.monad.xyz/guides/mera) passkey: no seed phrase, no extension, no server holding keys. Payments go from the main wallet by default. From the same passkey the sender can also keep a separate budget wallet for each person they support, so that relationship has its own balance and history, and the recipient sees only the wallet that pays them.
 
 ## What the recipient can do
 

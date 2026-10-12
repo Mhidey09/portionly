@@ -28,11 +28,8 @@ Requirement: a mobile app letting users send AUSD across borders using Mera pass
 ## Monad Foundation: Best Mera Powered UX
 
 - [x] Mera is the whole account layer: fingerprint creates the account, no seed phrase, no extension, no custody backend
-- [ ] Onboarding and unlock flows reviewed on the redesigned app
-
-## Monad Foundation: Mera, One Passkey, Many Keys
-
-- [x] One passkey derives a main wallet plus a separate wallet per person (BIP 44 index, as Mera's guide recommends); code and tests in `app/src/hd.ts`, `app/src/people.ts`, `app/src/wallet.ts`
+- [x] Onboarding and unlock flows reviewed on the redesigned app, on a physical phone (shown in the demo video)
+- [x] One passkey derives a main wallet plus an optional budget wallet per person (BIP 44 index, as Mera's guide recommends); code and tests in `app/src/hd.ts`, `app/src/people.ts`, `app/src/wallet.ts`
 - [x] Shown working on a physical phone: a person added, money set aside in their wallet, a payment sent from it (`docs/evidence/2026-10-10-many-keys.md`)
 
 ## Envio: Best Use of Envio
