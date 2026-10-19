@@ -166,7 +166,7 @@ The contracts are plain EVM. The product is not portable, for four reasons.
 - **Android test release.** Installed from an APK, not a store.
 - **No bank cash out yet.** Recipients receive digital dollars, shown in their own currency. Access to a licensed off ramp for AUSD on Monad was requested on 11 Oct 2026.
 - **Fees are paid in MON.** A payment sent by link carries its own fee. Someone paid straight to an address needs a little MON before moving the money on.
-- **Savings and stocks carry real risk.** Earnings are not guaranteed, the stock fund moves with the market and costs about 0.9% to buy or sell, and an instant savings withdrawal depends on the vault having cash on hand. The app shows each of these before you commit.
+- **Savings and stocks carry real risk.** Earnings are not guaranteed. The stock fund moves with the market and costs about 0.9% to buy or sell; its pool is small, so the app refuses any stock part that would pay more than 2% over the market price. An instant savings withdrawal depends on the vault having cash on hand. The app shows each of these before you commit.
 - **Unaudited.** The contracts are source verified and covered by unit, fuzz, invariant and mainnet fork tests, but have had no professional audit. Test amounts were small on purpose.
 
 The fine print is in [SECURITY.md](SECURITY.md).

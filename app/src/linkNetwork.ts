@@ -62,7 +62,9 @@ async function claimLink(key: Hex, recipient: Address, onUpdate: (update: Execut
   const fee = await publicClient.getBalance({ address: account.address });
   if (fee < MIN_LINK_FEE) throw new Error("This money link has too little MON to pay its fee. Ask the sender to send it again.");
 
-  const quote = payment.investAmount > 0n ? await quoteAusdToAqqq(payment.investAmount) : undefined;
+  // If the stock pool is too small for this amount, quote the margin price: the buy then falls short of
+  // its minimum and the link contract puts that part into savings instead, so collecting still works.
+  const quote = payment.investAmount > 0n ? await quoteAusdToAqqq(payment.investAmount, { onThin: "fair" }) : undefined;
   const investMinimumOut = quote ? (quote.amountOut * 9_900n) / 10_000n : 0n;
   const deadline = BigInt(Math.floor(Date.now() / 1_000)) + DEADLINE_SECONDS;
   const claim = buildClaimCall({ recipient, investAmount: payment.investAmount, investMinimumOut, deadline });

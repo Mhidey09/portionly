@@ -18,6 +18,7 @@ import { MONAD_CHAIN_ID, MONAD_RPC_URL } from "./config";
 import { buildFundingCalls } from "./funding";
 import { claimCallData } from "./locks";
 import type { Wallet } from "./wallet";
+import { REFERENCE_IN, THIN_POOL_MESSAGE, judgeStockQuote } from "./stockPrice";
 
 const erc20Abi = [
   {
@@ -84,7 +85,21 @@ async function readBalances(account: Address): Promise<Balances> {
   return { mon, ausd, aqqq, earn };
 }
 
-async function quoteAusdToAqqq(amountIn: bigint): Promise<Quote> {
+/**
+ * A quote for the stock part. A buy that would pay well past the pool's margin price is refused, or,
+ * with `onThin: "fair"`, quoted at the margin price so the contract's minimum turns it into savings.
+ */
+async function quoteAusdToAqqq(amountIn: bigint, options: { onThin?: "refuse" | "fair" } = {}): Promise<Quote> {
+  const quote = await quoteRoute(amountIn);
+  if (amountIn <= REFERENCE_IN) return quote;
+  const reference = await quoteRoute(REFERENCE_IN);
+  const { fairOut, thin } = judgeStockQuote(amountIn, quote.amountOut, reference.amountOut);
+  if (!thin) return quote;
+  if (options.onThin === "fair") return { ...quote, amountOut: fairOut };
+  throw new Error(THIN_POOL_MESSAGE);
+}
+
+async function quoteRoute(amountIn: bigint): Promise<Quote> {
   if (amountIn <= 0n || amountIn > (1n << 128n) - 1n) throw new Error("Quote amount is outside uint128 range");
   await assertMonad();
   const data = encodeFunctionData({
@@ -108,7 +123,7 @@ async function quoteAusdToAqqq(amountIn: bigint): Promise<Quote> {
 }
 
 async function quoteOneAusd(): Promise<Quote> {
-  return quoteAusdToAqqq(1_000_000n);
+  return quoteRoute(1_000_000n);
 }
 
 async function prepareProof(account: Address): Promise<{ balances: Balances; quote: Quote; plan: AqqqProofPlan }> {
